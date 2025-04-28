@@ -5,6 +5,9 @@ class Signals:
     def __init__(self,filename=None,transmitterIDs=None,filedata=None,filetype=None,angleOffset=0,timeOffset=0):
         """
         Class to load, parse and store the raw data from the receiver.
+
+        See 'data' attribute for numpy array of the raw data, stores with follow columns:
+        RSSI, ID(ord of a character id), Angle(radians), Time(milliseconds since transmitter turned on)
         
         Load in a file from either a .pcap file (off a tag) or a .log file
         (produced by active_scanner.c running on a DA14531 dev board).
@@ -69,11 +72,9 @@ class Signals:
 
     def standardizeAnglesAndTimes(self,data,angleOffset,timeOffset):
         # Standardize the angles
-        
-        maxang, minang = np.max(data[:,2]),np.min(data[:,2])
-        data[:,2] = 359 * data[:,2] - minang / (maxang - minang) #TODO: WHY IS THIS NECESSARY?!
-        data[:,2] = np.deg2rad((data[:,2]+angleOffset) % (maxang+1))
-        data[:,3]-= timeOffset #TODO Is this the right column?
+        data[:,2] = np.deg2rad((data[:,2] + angleOffset) % 360)
+        # Standardize the times
+        data[:,3]-= timeOffset
         return data
     
     def parseDataFromPcapPaste(filedata, transmitterIDs):
