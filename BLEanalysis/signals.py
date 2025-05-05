@@ -1,5 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from scipy.signal import savgol_filter as filter
+
 
 class Signals:
     def __init__(self,filename=None,transmitterIDs=None,filedata=None,filetype=None,angleOffset=0,timeOffset=0):
@@ -48,6 +50,12 @@ class Signals:
             self.data = self.parseDataFromPcapPaste(self.filedata,self.transmitterIDs)    
 
         self.data = self.standardizeAnglesAndTimes(self.data,angleOffset,timeOffset)
+            
+    def summarise(self):
+        print("Transmitter       Number of records")
+        for transmitter_id in set(self.data[:,1]):
+            print("%9s            %9d" % (chr(int(transmitter_id)),sum(self.data[:,1]==transmitter_id)))
+        
 
     def parseDataFromDevBoard(self, filedata, transmitterIDs=None):
         """Split data from .log file, generated from the dev board active_scanner.c into packets
@@ -108,11 +116,28 @@ class Signals:
                 data.append(dataPoint)
         return np.array(data).astype(float)
 
-    def averageRSSIsAtAngle(self,transmitterId):
+    def averageRSSIsAtAngle(self,transmitterId,detrend=False,smooth=False,smoothwindow=np.deg2rad(2)):
+        """
+        Returns a numpy array. Each row contains:
+            angle
+        """
         data = self.data[self.data[:,1]==ord(transmitterId),:]
+        
+        if detrend:
+            f = filter(data[:,0],200,2)        
+            data[:,0] = data[:,0]-f+np.mean(f)
+
         uniqueAngles = np.array(sorted(set(data[:, 2])))
         avgRSSIatAngle = []
+        raw_data_atAngle = []
+        
+
         for angle in uniqueAngles:
-            avgRSSIatAngle.append([angle,np.mean(data[data[:,2]==angle,0])])
-        return np.array(avgRSSIatAngle)
+            if smooth:
+                matching_data = data[(data[:,2]>=angle-smoothwindow) & (data[:,2]<=angle+smoothwindow),0]
+            else:
+                matching_data = data[data[:,2]==angle,0]
+            raw_data_atAngle.append(matching_data)
+            avgRSSIatAngle.append([angle,np.mean(matching_data),len(matching_data),np.std(matching_data)/np.sqrt(len(matching_data))])
+        return np.array(avgRSSIatAngle), raw_data_atAngle
 
