@@ -79,6 +79,7 @@ class Signals:
         return np.array(data).astype(float)
 
     def standardizeAnglesAndTimes(self,data,angleOffset,timeOffset):
+        print("Standardising angles and times (shifting by %0.2f degrees)" % angleOffset)
         # Standardize the angles
         data[:,2] = np.deg2rad((data[:,2] + angleOffset) % 360)
         # Standardize the times
@@ -116,18 +117,35 @@ class Signals:
                 data.append(dataPoint)
         return np.array(data).astype(float)
 
-    def averageRSSIsAtAngle(self,transmitterId,detrend=False,smooth=False,smoothwindow=np.deg2rad(2)):
+    def averageRSSIsAtAngle(self,transmitterId=None,detrend=False,smooth=False,smoothwindow=np.deg2rad(2)):
         """
-        Returns a numpy array. Each row contains:
-            angle
+        Finds the average RSSI for each DEGREE (but returns in radians), using this received dataset. Note that the transmitterId might
+        already have been selected in the constructor.
+        
+        detrend = whether to subtract a smoothed rolling average from the dataset
+        smooth = whether to smooth over a short period the dataset
+        smoothwindow = if smooth set to True the smoothwindow controls the width of the window
+        
+        Returns a tuple:
+         - an array of averages. Each row contains:
+            - angle in radians (in 1 degree steps, from 0 to 359).
+            - the mean signal strength
+            - the number of records used to compute the mean
+            - the standard error on the mean estimate, i.e. np.std(matching_data)/np.sqrt(len(matching_data)).
+         - an array of all the records used at each angle to compute the array.
         """
-        data = self.data[self.data[:,1]==ord(transmitterId),:]
+        if transmitterId is not None:
+            data = self.data[self.data[:,1]==ord(transmitterId),:].copy()
+        else:
+            data = self.data.copy()
         
         if detrend:
             f = filter(data[:,0],200,2)        
             data[:,0] = data[:,0]-f+np.mean(f)
 
-        uniqueAngles = np.array(sorted(set(data[:, 2])))
+        uniqueAngles = np.deg2rad(np.arange(360))
+
+        #uniqueAngles = np.array(sorted(set(data[:, 2])))
         avgRSSIatAngle = []
         raw_data_atAngle = []
         
