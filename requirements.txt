@@ -1,0 +1,7 @@
+numpy
+scipy
+matplotlib
+tensorflow
+tf_keras
+tensorflow_probability
+pyproj
