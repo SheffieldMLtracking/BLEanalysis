@@ -7,8 +7,8 @@ class SimpleDemo:
         """Create simple straight line, synthetic data"""
         
         # Location of transmitters
-        a = [28,40,0]
-        e = [63,15,0]
+        a = [28,40]
+        e = [63,15]
         self.stationlocations = np.array([a,e])
         # Time for each observation in order that observations are stored in observations[]
         self.obstimes = np.linspace(0,5,30)
@@ -17,7 +17,7 @@ class SimpleDemo:
         self.observations = []
         self.trueLocations = []
         for i,t in enumerate(self.obstimes):
-            location = np.array([(1*t)*10+10 + np.random.randint(1,5),(1*t)*10 + np.random.randint(1,5),0])
+            location = np.array([(1*t)*10+10 + np.random.randint(1,5),(1*t)*10 + np.random.randint(1,5)])
             vect = location-self.stationlocations
             vect/= np.linalg.norm(vect,axis=1)[:,None]
             possibleobs = np.c_[self.stationlocations,vect]
@@ -41,7 +41,7 @@ class SimpleDemo:
         plt.plot(self.trueLocations[:,0],self.trueLocations[:,1],'x-')
         plt.axis('equal')
         for obs in self.observations:
-            plt.plot([obs[0],obs[0]+obs[3]*30],[obs[1],obs[1]+obs[4]*30],color='grey',alpha=0.1)
+            plt.plot([obs[0],obs[0]+obs[2]*30],[obs[1],obs[1]+obs[3]*30],color='grey',alpha=0.1)
         plt.title("Synthetic Path")
         plt.xlabel("x coords")
         plt.ylabel("y coords")
