@@ -21,12 +21,13 @@ def confidence_ellipse(mean, cov, ax, n_std=3.0, fill=False, opacity=1, **kwargs
     Parameters:
      mean: the location of the Gaussian
      cov: the covariance of the Gaussian
-     ax: what is this? TODO
+     ax: what axis to draw on
      n_std: Which contour to draw (standard deviations from the mean), default 3.
      fill: boolean, whether to fill the ellipose (default: false)
      opacity: how opaque to make the ellipse (default 1.0).
      **kwargs: pass other keywords to the Ellipse constructor.
     
+    Returns the ellipse drawing object, can be drawn with ax.add_patch(el)
     TODO: Convert to using a passed axis object (usually 'ax', but confusingly this is already a parameter).
     """
     pearson = cov[0, 1]/np.sqrt(cov[0, 0] * cov[1, 1])
@@ -40,6 +41,7 @@ def confidence_ellipse(mean, cov, ax, n_std=3.0, fill=False, opacity=1, **kwargs
         .scale(scale_x, scale_y) \
         .translate(mean[0], mean[1])
     ellipse.set_transform(transf + ax.transData)
+    ax.add_patch(el)
     return ellipse
     
 
