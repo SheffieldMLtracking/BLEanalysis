@@ -4,36 +4,7 @@ import pickle
 from BLEanalysis.signals import Signals
 from scipy.stats import norm
 
-def getSample(data, time, time_intervals,raw=False,exclude_missing=10):        
-    """This method is for sampling a whole bunch of times at once, as part of generating the training data.
-    Specifically, given a numpy array 'data', containing columns [RSSI, ID, Angle(radians), Time(milliseconds)]
-    and the time we want to sample near (time) and the intervals (time_intervals) returns a single instance of this
-    #TODO Return None (or raise exception) if missing
-    #TODO Allow a list of times to be past, to make this faster    
-    
-    Parameters:
-     - time: the time that we are sampling.
-     - time_intervals: separation between samples
-     
-     - raw: If set to true, returns the actual (rather than relative RSSIs) (default False).
-     - exclude_missing: if a number, sets to nan if no samples are available within that time
-                   (default=10ms, which is equivalent to 1.8 degrees). Set to None to disable
-    Note: If the first element of the returned RSSIs is set to NaN, and raw is False, then all the elements will be NaN
-     ( as the first one is subtracted from the rest ).
-    """
-    times = np.array(time_intervals) + time
-    # find index of the packets in our data set, closest to these times.
-    
-    index = np.argmin(np.abs(data[:, -1:] - times[None,:]), 0)       
-    rssis = data[index,0]
-    angles = data[index,2]
-    if exclude_missing is not None:
-        rssis[(np.abs(data[:, -1:] - times[None,:]))[index,range(len(index))]>=exclude_missing]=np.NaN
-        angles[(np.abs(data[:, -1:] - times[None,:]))[index,range(len(index))]>=exclude_missing]=np.NaN
-        #print((np.abs(data[:, -1:] - times[None,:]))[index,range(len(index))]>=exclude_missing)
-    if not raw:       
-        rssis-=rssis[0] #NOTE: I've switched to making the first time the angle index time as we could have an unknown number of time_intervals.        
-    return rssis, angles #data[index[0],2]
+
 
 class Angles:
     def __init__(self):

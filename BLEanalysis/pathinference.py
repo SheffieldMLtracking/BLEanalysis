@@ -96,7 +96,7 @@ class Path:
         max_time = np.max(self.observation_times) + margin
         min_time = np.min(self.observation_times) - margin       
         result = []        
-        for vector_observed in range(int(self.observations.shape[1] / 2)):        
+        for vector_observed in range(int(self.ndims)):        
             result.extend(np.c_[np.linspace(min_time, max_time, number), np.full(number, vector_observed)])
         return np.array(result)
 

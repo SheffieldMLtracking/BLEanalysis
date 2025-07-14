@@ -158,4 +158,54 @@ class Signals:
             raw_data_atAngle.append(matching_data)
             avgRSSIatAngle.append([angle,np.mean(matching_data),len(matching_data),np.std(matching_data)/np.sqrt(len(matching_data))])
         return np.array(avgRSSIatAngle), raw_data_atAngle
+        
+        
+    def getSample(self, burst_length, sample_interval, target_time=None, target_angle=None, accept_missing = 2,exclude_missing=10,raw=True):
+        """Generates one burst with required parameters
+        This method is for sampling a whole bunch of times at once, as part of generating the training data.
+        Specifically, using the object's 'data' array, containing columns [RSSI, ID, Angle(radians), Time(milliseconds)]
+        and the time we want to sample near (time) and the intervals (time_intervals) returns a single instance of this.
+        
+        burst_length = how many milliseconds the burst takes
+        sample_interval = how long between samples during the burst
+        target_time = time you want to sample at [optional]
+        target_angle = angle you want to sample at [optional]
+        accept_missing = maximum number of samples without an observation (doesn't work with target_time).
+        exclude_missing = if a number, sets to nan if no samples are available within that time
+                       (default=10ms, which is equivalent to 1.8 degrees). Set to None to disable
+        Note: If the first element of the returned RSSIs is set to NaN, and raw is False, then all the elements will be NaN
+         ( as the first one is subtracted from the rest )."""
+        
+        if target_time is not None and target_angle is not None:
+            raise Exception("Need to select EITHER target_time OR target_angle but not both.")
+        time_intervals = np.arange(-burst_length/2,burst_length,sample_interval)
+        
+        data_starttime = np.min(self.data[:,3])
+        data_endtime = np.max(self.data[:,3])
+        data_length = data_endtime - data_starttime
+        while True:
+            if target_time is not None:
+                time = target_time
+            else:
+                if target_angle is not None:            
+                    index = np.random.choice(np.where(np.abs(self.data[:,2]-target_angle)<np.deg2rad(1.2))[0])
+                    time = self.data[index,3]
+                else:
+                    time = data_starttime+np.random.rand()*data_length
 
+            times = np.array(time_intervals) + time
+            # find index of the packets in our data set, closest to these times.
+            index = np.argmin(np.abs(self.data[:, -1:] - times[None,:]), 0)       
+            rssis = self.data[index,0]
+            angles = self.data[index,2]
+            if exclude_missing is not None:
+                rssis[(np.abs(self.data[:, -1:] - times[None,:]))[index,range(len(index))]>=exclude_missing]=np.NaN
+                angles[(np.abs(self.data[:, -1:] - times[None,:]))[index,range(len(index))]>=exclude_missing]=np.NaN
+            if not raw:       
+                rssis-=rssis[0] #NOTE: I've switched to making the first time the angle index time as we could have an unknown number of time_intervals. 
+            if target_time is not None: break
+            if np.sum(np.isnan(rssis))>accept_missing: continue   
+            break
+            
+        return rssis, angles
+        
