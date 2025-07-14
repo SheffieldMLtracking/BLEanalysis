@@ -1,19 +1,32 @@
-import tensorflow as tf
-import tensorflow_probability as tfp
-from tensorflow_probability import distributions as tfd
 import numpy as np
-import matplotlib
-matplotlib.rcParams["axes.formatter.limits"] = (-99, 99)
-import matplotlib.pyplot as plt
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
-import scipy.stats as sci
-import pyproj
-#from matplotlib_scalebar.scalebar import ScaleBar
+import jax.numpy as jnp
 
-# TODO Work our which of these imports are necessary for this file
+def kl_mvn(m0, S0, m1, S1):
+    """
+    Kullback-Liebler divergence from Gaussian pm,pv to Gaussian qm,qv.
+    Also computes KL divergence from a single Gaussian pm,pv to a set
+    of Gaussians qm,qv.
+    
 
+    From wikipedia
+    KL( (m0, S0) || (m1, S1))
+         = .5 * ( tr(S1^{-1} S0) + log |S1|/|S0| + 
+                  (m1 - m0)^T S1^{-1} (m1 - m0) - N )
 
+    copied from https://stackoverflow.com/a/55688087
+    """
+    # store inv diag covariance of S1 and diff between means
+    N = m0.shape[0]
+    iS1 = jnp.linalg.inv(S1)
+    diff = m1 - m0
+
+    # kl is made of three terms
+    tr_term   = jnp.trace(iS1 @ S0)
+    det_term  = jnp.log(jnp.linalg.det(S1)/jnp.linalg.det(S0))
+    quad_term = diff.T @ jnp.linalg.inv(S1) @ diff
+    return .5 * (tr_term + det_term + quad_term - N) 
 
 def confidence_ellipse(mean, cov, ax, n_std=3.0, fill=False, opacity=1, **kwargs):
     """Draws an ellipse to illustrate a Gaussian with given mean and covariance.
@@ -41,7 +54,7 @@ def confidence_ellipse(mean, cov, ax, n_std=3.0, fill=False, opacity=1, **kwargs
         .scale(scale_x, scale_y) \
         .translate(mean[0], mean[1])
     ellipse.set_transform(transf + ax.transData)
-    ax.add_patch(el)
+    ax.add_patch(ellipse)
     return ellipse
     
 
