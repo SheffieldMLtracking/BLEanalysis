@@ -4,6 +4,10 @@ import pickle
 from BLEanalysis.signals import Signals
 from scipy.stats import norm
 
+def normalise_logs_to_ps(logp):
+    p = np.exp(logp - np.max(logp))
+    p/= np.sum(p)
+    return p
 
 
 class Angles:
@@ -14,7 +18,7 @@ class Angles:
         raise NotImplementedError
         
 class AnglesUsePatternMeans(Angles):
-    def __init__(self,sigs,noisevar = 10**2):
+    def __init__(self,sigs=None,noisevar = 10**2):
         """...
         
         Parameters:
@@ -23,6 +27,8 @@ class AnglesUsePatternMeans(Angles):
                   [RSSI, ID(ord of a character id), Angle(radians), Time(milliseconds since transmitter turned on)]
          noisevar : the noise variance in the observations at test time (might be in dB^2?)
          """
+        if sigs is None:
+            sigs = Signals("noamploc2long.log",'d',angleOffset = 38) #TODO Figure out how to make this always available
         self.avgRSSIs,_ = sigs.averageRSSIsAtAngle(detrend=True,smooth=True)
         self.noisevar = noisevar
         
@@ -30,6 +36,8 @@ class AnglesUsePatternMeans(Angles):
         """
         Returns the [unnormalised] log probabilities of a list of angles, given the observed signal strengths, and
         the angles recorded.
+        
+        Currently returns: logp,errs,avgAtAngles,keptObs
         """ 
         #obs and obs_angle can contain NaNs for missing observations.
         keep = ~np.isnan(obs_angles)
