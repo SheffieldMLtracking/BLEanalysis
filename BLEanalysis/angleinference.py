@@ -3,6 +3,7 @@ import numpy as np
 import pickle
 from BLEanalysis.signals import Signals
 from scipy.stats import norm
+from scipy.signal import savgol_filter
 
 def normalise_logs_to_ps(logp):
     p = np.exp(logp - np.max(logp))
@@ -28,7 +29,7 @@ class AnglesUsePatternMeans(Angles):
          noisevar : the noise variance in the observations at test time (might be in dB^2?)
          """
         if sigs is None:
-            sigs = Signals("noamploc2long.log",'d',angleOffset = 38) #TODO Figure out how to make this always available
+            sigs = Signals("../bluetooth_experiments/no rf amp experiments/noamploc2long.log",'d',angleOffset = 38)
         self.avgRSSIs,_ = sigs.averageRSSIsAtAngle(detrend=True,smooth=True)
         self.noisevar = noisevar
         
@@ -70,4 +71,24 @@ class AnglesUsePatternMeans(Angles):
         #p/= np.sum(p)
         #plt.plot(p)
         return logp,errs,avgAtAngles,keptObs
+
+class AnglesUsePeaks(Angles):
+    def __init__(self, varThreshold = 5):
+        self.varThreshold = varThreshold # Threshold to filter out bursts in which there is no obvious peak
+
+    def infer(self,obs,obs_angles):
+        observations = []
+        for rssi in range(len(obs)):
+            if np.isnan(obs[rssi]):
+                obs[rssi] = np.nanmean(obs)
+        
+        if np.std(observations) < self.varThreshold:
+            return np.nan
+            
+        else:
+            smoothed = savgol_filter(obs, window_length=5, polyorder=2) # TODO Better args?
+            maxValueIndex = np.argmax(smoothed)
+            return obs_angles[maxValueIndex]
+        
+            
 
