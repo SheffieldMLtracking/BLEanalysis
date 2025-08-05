@@ -10,6 +10,12 @@ def normalise_logs_to_ps(logp):
     p/= np.sum(p)
     return p
 
+def normalize_radians(angle):
+    """
+    Makes an angle clockwise and between 0-2pi radians
+    """
+    normalized = angle % (2 * np.pi)
+    return 2*np.pi - (normalized) if normalized >= 0 else 2*np.pi - (normalized + 2 * np.pi)
 
 class Angles:
     def __init__(self):
@@ -88,7 +94,7 @@ class AnglesUsePeaks(Angles):
         else:
             smoothed = savgol_filter(obs, window_length=5, polyorder=2) # TODO Better args?
             maxValueIndex = np.argmax(smoothed)
-            return obs_angles[maxValueIndex]
+            return normalize_radians(obs_angles[maxValueIndex])
         
             
 
