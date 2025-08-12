@@ -1,214 +1,264 @@
-import tensorflow as tf
-import tensorflow_probability as tfp
-from tensorflow_probability import distributions as tfd
-import numpy as np
-import matplotlib
-matplotlib.rcParams["axes.formatter.limits"] = (-99, 99)
+from jax import grad
+import optax
+from jax.scipy.stats import norm
+from jax.random import multivariate_normal as mvn
+from jax.random import normal
+from jax import random
+import jax
+import jax.numpy as np
+
+from BLEanalysis import kl_mvn 
+from BLEanalysis.angleinference import AnglesUsePatternMeans
+from BLEanalysis import confidence_ellipse
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
-import matplotlib.transforms as transforms
-import scipy.stats as sci
-import pyproj
-#from matplotlib_scalebar.scalebar import ScaleBar
 
-# TODO Work our which of these imports are necessary for this file
-
-def crossProduct(a, b):
-    """Computes cross product of vectos in two tensors.
-    
-    Parameters:
-    a and b: The tensors containing the vectors to compute over.
-    
-    TODO: This might be in tensorflow now.
-    TODO: Explain the shape that a and b can be.
-    """
-    size = a.shape[0]
-    A = tf.Variable([[tf.zeros(size), -a[:, 2], a[:, 1]], [a[:, 2], tf.zeros(size), -a[:, 0]], [-a[:, 1], a[:, 0], tf.zeros(size)]])
-    A = tf.transpose(A, [2, 0, 1])
-    A = A[None, :, :, :]
-    b = b[:, :, :, None]
-    return (A@b)[:,:,:,0]
-
+key = random.key(0)
+        
 class Path:
-    def __init__(self, observationTimes, observations, kernel, noiseScale, numberOfInducingPoints):
+    def __init__(self, observation_times, observations, kernel, inducing_points, ndims = 2):
         """
         Performs variational inference using the 'single angle only' observations to work out possible paths of the tag.
         
         This uses observations that consist of single angles, rather than probability distributions of angles.
         
         Parameters:
-         observationTimes : an array of the times the observations were made.
+         observation_times : an array of the times the observations were made.
          observations : array of the angles they were (radians)
          kernel : an instantiation of a kernel class
-         noiseScale : the standard deviation (TODO or variance?? TBC) of the Gasussian noise model
-         numberOfInducingPoints : number of inducing points
-         
-         NOTE: I've removed inducingPointRange -- this is just set now inside the code. 
-         the class places inducing points, with some before and after the data, this specifies the percentage
-                              time before and after ( TODO: I think it makes more sense that this should depend on the lengthscale
-                              or just be a fixed time? ).
+         noise_scale : the standard deviation (TODO or variance?? TBC) of the Gasussian noise model
+         inducing_points : either the number of inducing points, or an array of their values.
+                  If the former, the class places inducing points, with some before and after the data.
+         ndims : the numbers of spatial dimensions (default = 2).
         """
         self.observations = observations # Angle observations made
-        self.observationTimes = observationTimes # Times observations were made at
-        self.noiseScale = noiseScale # Noise scale of likelihood
+        self.observation_times = observation_times # Times observations were made at
+        self.ndims = ndims
+        #self.noise_scale = noise_scale # Noise scale of likelihood --> likelihood specific.
         self.kernel = kernel # Kernel function
-        self.jitter = 0 # Jitter applied to covariance matrix during training
-        self.mean = [] # Posterior mean
-        self.covariance = [] # Posterior covariance\
-        self.Z = self.selectPoints(numberOfInducingPoints) # Select inducing points
-        self.lossHistory = []
+        self.jitter = 0.01 # Jitter applied to covariance matrix during training
+
+        if type(inducing_points)==int:
+            self.Z = self.selectPoints(inducing_points) # Select inducing points
+        else:
+            self.Z = inducing_points
+        self.loss_history = []
 
 
-    def selectPoints(self, numInducingPoints, margin = 10):
-        """Returns a tf array of one-dimensional (inducing) point locations, placed evenly over the domain of times in self.observationTimes, with a margin
-        added.
+        self.nind = self.Z.shape[0]
+        self.diag_jitter = np.eye(self.nind) * self.jitter
+        #Precompute various matrices
+        self.X = self.buildX(observation_times)
+        self.y = self.observations
+        self.n = len(self.y)
         
-        NOTE: Previously +/- a percentage of the time observations were made at, using the values specified by observationTimes and inducingPointRange.
-        NOTE: This has been changed from "selectInducingPoints" as it is used by 'predict' (formally inference) to place test points.
-        
-        TODO: Could make margin depend on kernel lengthscale?
+        self.prior_mean = np.zeros(self.nind)
+        self.prior_covariance = self.kernel.K(self.Z, self.Z)
+        self.prepare_likelihood()
+
+    def buildX(self,observation_times):
+        """Helper function to generate the X matrix:
+         time1, 0
+         time2, 0
+         time3, 0
+          :
+         timeN, 0
+         time1, 1
+         time2, 1
         """
-        
-        max_time = np.max(self.observationTimes) + margin
-        min_time = np.min(self.observationTimes) - margin
-        
-        inputMatrix = []
-        # Evenly spaced inducing points
-        for vectorObserved in range(int(self.observations.shape[1] / 2)):
-            inputMatrixEntry = np.c_[np.linspace(min_time, max_time, numInducingPoints), np.full(numInducingPoints, vectorObserved)]
-            inputMatrix.extend(inputMatrixEntry)
-        return tf.Variable(np.array(inputMatrix), dtype=tf.float32)   
+        return np.c_[np.tile(observation_times, self.ndims), np.repeat(np.arange(self.ndims),len(observation_times))]
+
+    def precompute_matrices(self,X):
+        """
+        Computes matrices used later during inference. Note that this means the hyperparameters all remain fixed during inference.
+        # GP(Kzx Kzz^-1 y, Kzz - Kzx Kxx^-1 Kxz)
+        Also - once modified for testing, can't use for training!
+        """
+        self.Kzz = self.kernel.K(self.Z, self.Z) + np.eye(self.nind) * self.jitter
+        self.Kxx = self.kernel.K(X, X) + np.eye(X.shape[0]) * self.jitter
+        self.Kxz = self.kernel.K(X, self.Z)
+        self.Kzx = self.Kxz.T
+        self.KzzinvKzx = np.linalg.solve(self.Kzz, self.Kzx)
+        self.KxzKzzinv = self.KzzinvKzx.T
+        self.KxzKzzinvKzx = self.Kxz @ self.KzzinvKzx       
+
+    #Likelihood specific methods
+    def prepare_likelihood(self):
+        """
+        This optional method allows the child class to precompute expensive terms etc for likelihood calculation
+        """
+        #raise NotImplementedError
+        pass
     
-    def predict(self, numOfPredictions=100, Xs=None):
-        """Make predictions
-        
-        Parameters:
-         Xs : The times to make the predictions, or None (default).
-         numOfPredictions: If Xs set to None, place at evenly spaced times (spaced over the same domain as the training data)
-         
-        Returns:
-         mean and covariance of these points."""
-        # GP(Kzx Kzz^-1 y, Kzz - Kzx Kxx^-1 Kxz)
-        
-        if Xs is None:
-            Xs = self.selectPoints(numOfPredictions)
-            
-        Kzz = self.kernel.K(self.Z, self.Z) + (np.eye(self.Z.shape[0], dtype=np.float32) * self.jitter)
-        Kxx = self.kernel.K(Xs, Xs) + (np.eye(Xs.shape[0], dtype=np.float32) * self.jitter)
-        Kxz = self.kernel.K(Xs, self.Z)
-        Kzx = tf.transpose(Kxz)
-        KzzinvKzx = tf.linalg.solve(Kzz, Kzx)
-        KxzKzzinv = tf.transpose(KzzinvKzx)
-        KxzKzzinvKzx = Kxz @ KzzinvKzx
 
-        #TODO What is this????
-        numInputs = int(Xs.shape[0] / int(self.observations.shape[1] / 2))
-        mean = tf.transpose(tf.reshape((KxzKzzinv @ self.mean)[:, 0], [int(self.observations.shape[1] / 2), numInputs]), [1, 0])
-        covariance = tf.transpose(tf.concat([(Kxx - KxzKzzinvKzx + KxzKzzinv @ (self.covariance @ tf.transpose(self.covariance)) @ KzzinvKzx)
-                                      [i::numInputs, i::numInputs][:, :, None] for i in range(numInputs)], axis=2), [2, 0, 1])
-        
-        return mean, covariance
+    def selectPoints(self, number, margin = 3):
+        """Returns an array of one-dimensional (inducing) point locations, placed evenly over the domain of times
+        in self.observation_times, with a margin added.
 
-    def train(self, iterations=500, learningRate=0.15, numOfSamples = 100):
-        """Perform VI - iteratively optimise a surrogate GP to most closely resemble the intractable true posterior distribution using
-        the gradient of the ELBO at each step.
-        
-        Parameters:
-         interations: default 500.
-         learningRate: default 0.15.
-         numOfSamples: default 100.
-         
-        Returns: true if successful, false if 
+        TODO: Could make the margin depend on kernel lengthscale
         """
-        X = tf.Variable(np.c_[np.tile(self.observationTimes, int(self.observations.shape[1] / 2))[:, None],
-                        np.repeat(np.arange(int(self.observations.shape[1] / 2)), len(self.observationTimes), axis=0)], dtype=tf.float32)
-        y = tf.Variable(self.observations, dtype = tf.float32)
         
-        optimiser = tf.keras.optimizers.Adam(learning_rate = learningRate)
+        max_time = np.max(self.observation_times) + margin
+        min_time = np.min(self.observation_times) - margin       
+        result = []        
+        for vector_observed in range(int(self.ndims)):        
+            result.extend(np.c_[np.linspace(min_time, max_time, number), np.full(number, vector_observed)])
+        return np.array(result)
 
-        # Number of inducing points & inputs
-        numInducingPoints = self.Z.shape[0]
-        numInputs = int(X.shape[0] / int(self.observations.shape[1] / 2))
-        
-        # Mean of "surrogate" posterior
-        surrogateMean = tf.Variable(tf.random.normal([numInducingPoints, 1]))
-        # Use diagonal of covariance matrix for LU decomposition during iterative optimisation
-        surrogateLowerDiagonal = tf.Variable(np.tril(0.01 * np.random.randn(numInducingPoints,numInducingPoints) + 1 * 
-                                                     np.eye(numInducingPoints)), dtype=tf.float32)       
+    def get_posterior_distribution_parameters(self,surrogate_mean,surrogate_cov_tril):
+        tril = np.tril(surrogate_cov_tril)
+        surrogate_cov = tril@tril.T + self.diag_jitter
+        posterior_mean = (self.KxzKzzinv @ surrogate_mean)
+        posterior_cov = self.Kxx - self.KxzKzzinvKzx + self.KxzKzzinv @ surrogate_cov @ self.KzzinvKzx        
+        return posterior_mean, posterior_cov, surrogate_cov
 
-        # Prior distribution using K
-        priorMean = tf.zeros([1, numInducingPoints])
-        priorCovariance = tf.Variable(self.kernel.K(self.Z, self.Z))
-        prior = tfd.MultivariateNormalFullCovariance(priorMean, priorCovariance + (np.eye(priorCovariance.shape[0]) * self.jitter))
-
-        # GP(Kzx Kzz^-1 y, Kzz - Kzx Kxx^-1 Kxz)
-        Kzz = self.kernel.K(self.Z, self.Z) + (np.eye(self.Z.shape[0], dtype=np.float32) * self.jitter)
-        Kxx = self.kernel.K(X, X) + (np.eye(X.shape[0], dtype=np.float32) * self.jitter)
-        Kxz = self.kernel.K(X, self.Z)
-        Kzx = tf.transpose(Kxz)
-        KzzinvKzx = tf.linalg.solve(Kzz, Kzx)
-        KxzKzzinv = tf.transpose(KzzinvKzx)
-        KxzKzzinvKzx = Kxz @ KzzinvKzx
-
-        # Scaling factor for jitter hyperparameter, adjusted if cholesky decomp fails
-        jitterScale = tf.eye(numInducingPoints) * 0.00001
-
-        # Iteratively optimise surrogate distribution
-        for iteration in range(iterations):
-            with tf.GradientTape() as tape:
-
-                # Form surrogate posterior
-                surrogatePosterior = tfd.MultivariateNormalTriL(surrogateMean[:, 0], surrogateLowerDiagonal + jitterScale)
-                # If it fails, break so that the jitter can be adjusted
-                if np.any(np.isnan(surrogatePosterior.mean())):
-                    return False # TODO This might be better handled with an exception.
-                    
-                # Calculate parameters of surrogate posterior
-                posteriorSurrogateMean = (KxzKzzinv @ surrogateMean)[:,0]
-                # TODO: use offdiagonal matrix or multiple diagonals in LL^(T)
-                posteriorSurrogateCovariance = Kxx - KxzKzzinvKzx + KxzKzzinv @ ((surrogateLowerDiagonal + jitterScale) 
-                                                                                 @ tf.transpose(surrogateLowerDiagonal+jitterScale)) @ KzzinvKzx
-                covariance = tf.transpose(tf.concat([posteriorSurrogateCovariance[i::numInputs, i::numInputs] [:, :, None] 
-                                                     for i in range(numInputs)], axis=2),[2, 0, 1])
-                mean = tf.transpose(tf.reshape(posteriorSurrogateMean, [int(self.observations.shape[1] / 2),numInputs]), [1, 0])
-
-                # Sample from surrogate posterior...
-                samples = tfd.MultivariateNormalTriL(mean, tf.linalg.cholesky(covariance + tf.eye(int(self.observations.shape[1] / 2)) 
-                                                                            * self.jitter)).sample(numOfSamples)
-                        
-                # Calculate distance between surrogate posterior samples and observations
-                distance = tf.norm(crossProduct(y[:, 3:], samples - y[:, :3]), axis=2) / tf.norm(y[:, 3:], axis=1)
-                # Calculate the ELBO using the log likelihood of each distance
-                ELBO = -(tf.reduce_mean(tf.reduce_sum(tfd.Normal(0, self.noiseScale).log_prob(distance), 1)) 
-                         - tfd.kl_divergence(surrogatePosterior, prior))
-            
-            # Use tf gradients to optimise ELBO
-            gradients = tape.gradient(ELBO, [surrogateMean, surrogateLowerDiagonal])
-            optimiser.apply_gradients(zip(gradients, [surrogateMean, surrogateLowerDiagonal]))
-
-            self.lossHistory.append(ELBO.numpy())
-            # Print progress
-            if iteration % 50 == 0:
-                print("At iteration: %6d, loss is: %9.0f" % (iteration, ELBO.numpy()[0]))
-                
-        # Following completion of optimisation, store final variational parameters
-        self.mean = surrogateMean
-        self.covariance = surrogateLowerDiagonal
-        return True
-
-    def run(self, iterations=500, learningRate=0.15, numOfSamples = 100, jitterStart=0.000001):  
+    def compute_log_likelihood(self,samples):
         """
-        Wrapper function for training variational parameters.
-        
-        If training fails due to inability to invert Kzz, jitter is increased
+        Samples are possible locations of the bee. Return an array of the loglikelihood of each
         """
+        raise NotImplementedError
+        
+        
+    def calc_elbo(self,surrogate_mean,surrogate_cov_tril):
+        posterior_mean, posterior_cov, surrogate_cov = self.get_posterior_distribution_parameters(surrogate_mean,surrogate_cov_tril)
+        samples = mvn(key,posterior_mean,posterior_cov,self.number_samples) #number_samples x number_obserations
 
-        self.jitter = jitterStart
-        for i in range(10):
-            if self.train(iterations, learningRate, numOfSamples):
-                print("Training successful!")
-                return
-            else:
-                self.lossHistory = [] # Clear loss history
-                self.jitter *= 10
-                print("Increasing jitter to %0.5f" % self.jitter)
+        #compute ELBO: -(ll - KLdivergence)
+        lls = self.compute_log_likelihood(samples) #log likelhioods of the samples
+        elbo = -(np.mean(np.sum(lls,axis=1))- kl_mvn(self.prior_mean, self.prior_covariance, surrogate_mean, surrogate_cov))
+        return elbo
+
+    def run(self,iterations=500,number_samples=100,just_optimise_means=False,learning_rate=1,ndims=2):
+        self.number_samples = number_samples
+        self.iterations=iterations
+        self.precompute_matrices(self.X)
+
+        optimizer = optax.adam(learning_rate)
+        surrogate_mean = normal(key,self.nind)*20
+        surrogate_cov_tril = np.eye(self.nind)
+        opt_state = optimizer.init((surrogate_mean,surrogate_cov_tril))
+
+        print("Optimising mean...")
+        for it in range(iterations):#int(iterations*0.5)):
+            grads = grad(self.calc_elbo,[0,1])(surrogate_mean,surrogate_cov_tril)
+            updates, opt_state = optimizer.update(grads, opt_state)
+            surrogate_mean,_ = optax.apply_updates((surrogate_mean,surrogate_cov_tril), updates)
+            if it%50==0: 
+                print("iteration %4d: %9.1f" % (it,self.calc_elbo(surrogate_mean,surrogate_cov_tril)))
+
+        if not just_optimise_means:
+            optimizer = optax.adam(learning_rate)
+            opt_state = optimizer.init((surrogate_mean,surrogate_cov_tril))
+
+            print("Optimising mean and covariance...")
+            for it in range(iterations):# int(iterations*0.5)):
+                grads = grad(self.calc_elbo,[0,1])(surrogate_mean,surrogate_cov_tril)
+                updates, opt_state = optimizer.update(grads, opt_state)
+                surrogate_mean,surrogate_cov_tril = optax.apply_updates((surrogate_mean,surrogate_cov_tril), updates)
+                if it%50==0: 
+                    print("iteration %4d: %9.1f" % (it,self.calc_elbo(surrogate_mean,surrogate_cov_tril)))
+                    #print(surrogate_mean)
+
+        self.surrogate_mean = surrogate_mean
+        self.surrogate_cov_tril = surrogate_cov_tril
+
+    def get_predictions(self,test_times):
+        testX = self.buildX(test_times)
+        self.precompute_matrices(testX)
+        posterior_mean, posterior_cov, _ = self.get_posterior_distribution_parameters(self.surrogate_mean,self.surrogate_cov_tril)
+        return posterior_mean, posterior_cov
+        
+    def plot(self,n_std=3):
+        n_test = 50
+        posterior_mean, posterior_cov = self.get_predictions(np.linspace(-1,6,n_test))
+        plt.plot(posterior_mean[:n_test],posterior_mean[n_test:],'-')
+        ax = plt.gca()
+        for i in np.linspace(0,n_test-1,7).astype(int):
+            el = confidence_ellipse(posterior_mean[i::n_test],posterior_cov[i::n_test,i::n_test],ax,n_std=n_std)
+            ax.add_patch(el)
+        posterior_mean[0::n_test],posterior_cov[0::n_test,0::n_test]
+
+
+
+class Path_VectorsToBee(Path):
+    def __init__(self, observation_times, observations, kernel, inducing_points, noise_scale=0.1, ndims = 2):
+        """
+        noise_scale = number of distance-units (e.g. metres) the standard deviation of the noise is (default 0.1m)
+        """
+        self.noise_scale = noise_scale
+        super().__init__(observation_times, observations, kernel, inducing_points, ndims)
+        
+    def prepare_likelihood(self):
+        self.y_vects = np.c_[self.y[:,2:],np.zeros(self.n)] #vectors to bee extracted from 'y'
+        self.y_pos = self.y[:,:2].T.reshape(self.y.shape[0]*self.ndims)
+
+    def compute_log_likelihood(self,samples):
+        """
+        Samples are possible locations of the bee. 
+        Return an array of the loglikelihood of each.
+        Assumes observations are angles to the bees.
+        """
+        samples_with_z = np.c_[samples- self.y_pos,np.zeros([self.number_samples,self.n])] #adds an extra axis
+        s = samples_with_z.reshape(self.number_samples,3,self.n)
+        s = np.swapaxes(s,1,2)        
+        cross_vects = np.cross(self.y_vects,s)
+        distances = np.linalg.norm(cross_vects,axis=2) #don't need to divide by np.linalg.norm(y[:,2:],axis=1), as this is set to one
+        return norm.logpdf(distances,0,self.noise_scale)
+        
+    
+   
+class Path_ProbabilityDensitiesToBee(Path):
+    def __init__(self, observation_times, burst_observations, kernel, noise_scale, inducing_points, ndims = 2):
+        """Pass each burst as an observation"""
+        self.angles = AnglesUsePatternMeans(noisevar=noise_scale**2)
+        super().__init__(observation_times, burst_observations, kernel, inducing_points, ndims)
+
+    def prepare_likelihood(self):
+        all_pdfs = []
+        all_lpdfs = []
+        all_ypos = []
+        all_argmax_angles = []
+        for i,obs in enumerate(self.y):
+            lpdf,_,_,_ = self.angles.infer(obs['rssis'],obs['angles'])            
+            all_lpdfs.append(lpdf)
+            all_ypos.append(obs['transmitter_position'])
+            all_argmax_angles.append(np.deg2rad(np.argmax(lpdf)))
+        self.y_vects = np.array(all_lpdfs)
+        self.y_angles = np.array(all_argmax_angles)
+        self.y_pos = np.array(all_ypos).T.reshape(len(self.y)*self.ndims)
+
+    def compute_log_likelihood(self,samples):
+        #We need to get what the probability of each sample is
+        #1) Subtract the location of each transmitter
+        s = (samples - self.y_pos)
+        
+        #2) Compute the angle from each transmitter to the sample
+        sample_angles = (np.atan2(s[:,self.n:],s[:,:self.n]))%(np.pi*2)
+        
+        #Detour: If we want to use an alternative approach
+        err = (self.y_angles-sample_angles)%(2*np.pi)
+        #circularises the subtraction
+        err = err[:,:,None]
+        err = np.c_[np.abs(err),np.abs(err-np.pi*2)]
+        err = np.min(err,2)
+        #print(np.mean(err))
+        distances = np.sqrt(s[:,self.n:]**2 + s[:,:self.n]**2)
+        #err = err/distances
+        
+        #return norm.logpdf(err,0,0.05)
+        
+        #3) Find the floating point "index" into the probability density data (stored as a list of densities) -- currently there are 360 of them THIS COULD CHANGE!
+        bin_float_index = 360 * sample_angles.T/(2*np.pi)
+        
+        #4) Find the actual index:
+        bin = np.trunc(bin_float_index).astype(int) #we happen to use 360 bins in the inference, but that isn't required!
+        assert np.all(bin>=0)
+        assert np.all(bin<360)
+        
+        #5) and the proportional amount (so we can linearly interpolate)
+        bin_ratio = bin_float_index%1
+        
+        #6) compute the linear interpolated prob. densities:
+        logps = np.take_along_axis(self.y_vects,bin,axis=1)*(1-bin_ratio) + np.take_along_axis(self.y_vects,(1+bin)%360,axis=1)*bin_ratio
+        #print(np.min(np.log(ps)))
+        return logps
+
