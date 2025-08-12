@@ -64,7 +64,7 @@ class SignalDemo(SimpleDemo):
         """
         super().__init__(obstimes)
         if sigs is None: #TODO How to make this always find this file...
-            sigs = Signals("noamploc2long.log",'d',angleOffset = 38)
+            sigs = Signals("../bluetooth_experiments/no rf amp experiments/noamploc2long.log",'d',angleOffset = 38)
         
         new_observations = []
         for obs in self.observations:

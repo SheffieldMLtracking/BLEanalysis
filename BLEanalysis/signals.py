@@ -43,6 +43,7 @@ class Signals:
             raise Exception("No data to parse.") 
 
         self.transmitterIDs = transmitterIDs
+        self.transmitterLocations = {}
         
         if filetype == 'log':
             self.data = self.parseDataFromDevBoard(self.filedata,self.transmitterIDs)
@@ -55,6 +56,64 @@ class Signals:
         print("Transmitter       Number of records")
         for transmitter_id in set(self.data[:,1]):
             print("%9s            %9d" % (chr(int(transmitter_id)),sum(self.data[:,1]==transmitter_id)))
+
+    def parseBursts(self, burstInterval= 5000):
+        """
+        Function to take the data parsed by this object using parseDataFromDevBoard or parseDataFromPcapPaste,
+        and turn it into a struct with the burst scans separated out.
+            transmitterLocations : 2D array comprising of [transmitter ID, transmitter lat, transmitter lon]
+            burstInterval : the space between bursts of scanning, if not specified separates data into 2 second bursts (used for data in which
+                            scanning is constant and not in bursts)
+        """
+        bursts = []
+        times = []
+        
+        for transmitterID in self.transmitterIDs:
+            # Get only data from one transmitter at a time 
+            currentTransmitterData = []
+            for packet in self.data:
+                if packet[1] == float(ord(transmitterID)):
+                    currentTransmitterData.append(packet)
+
+            currentTransmitterData = np.array(currentTransmitterData)
+
+            if burstInterval > 0:
+                
+                time_diffs = np.diff(currentTransmitterData[:, 3])
+                split_indices = np.where(time_diffs > burstInterval)[0] + 1
+
+                # Split into clusters
+                clusters = np.split(currentTransmitterData, split_indices)
+            else:
+                packettimes = currentTransmitterData[:, 3]
+    
+                # Ensure data is sorted by time (optional but recommended)
+                sort_idx = np.argsort(packettimes)
+                currentTransmitterData = currentTransmitterData[sort_idx]
+                packettimes = packettimes[sort_idx]
+    
+                # Compute bin edges from min to max time
+                start_time = packettimes[0]
+                end_time = packettimes[-1]
+                bins = np.arange(start_time, end_time + 2000, 2000)
+    
+                # Digitize each timestamp to a bin
+                bin_indices = np.digitize(packettimes, bins)  # bin index starts from 1
+    
+                # Group rows by bin index
+                clusters = [currentTransmitterData[bin_indices == i] for i in np.unique(bin_indices)]
+                
+            
+            for cluster in clusters:
+                currentCluster = {}
+                currentCluster['transmitter_position'] = np.array(self.transmitterLocations[transmitterID])
+                currentCluster['rssis'] = cluster[:, 0]
+                currentCluster['angles'] = cluster[:, 2]
+                bursts.append(currentCluster)
+                times.append(int(np.mean(cluster[:, 3])))
+        
+        
+        return bursts,times
         
 
     def parseDataFromDevBoard(self, filedata, transmitterIDs=None):
@@ -84,9 +143,15 @@ class Signals:
         data[:,2] = np.deg2rad((data[:,2] + angleOffset) % 360)
         # Standardize the times
         data[:,3]-= timeOffset
+        data = data[np.argsort(data[:, -1]), :]
         return data
+
+    def configureTransmitter(self, transmitterID, timeOffset, angleOffset, transmitterLat, transmitterLon):
+        # TODO : Function to offset a specific transmitterID by an angle and a time
+        # TODO : normalise GPS locations around 0 and express in northing & easting
+        self.transmitterLocations[transmitterID] = [[transmitterLat, transmitterLon]]
     
-    def parseDataFromPcapPaste(filedata, transmitterIDs):
+    def parseDataFromPcapPaste(self, filedata, transmitterIDs):
         """
         TODO: Untested
         """
@@ -103,8 +168,6 @@ class Signals:
                 rawPackets.append(packet[3])
 
         rawUniquePackets = set(rawPackets)
-        print(len(set(stuff)))
-        print(len(rawUniquePackets))
         
         data = []
         for packet in rawUniquePackets:
