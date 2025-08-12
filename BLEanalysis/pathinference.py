@@ -35,7 +35,7 @@ class Path:
         self.ndims = ndims
         #self.noise_scale = noise_scale # Noise scale of likelihood --> likelihood specific.
         self.kernel = kernel # Kernel function
-        self.jitter = 0.01 # Jitter applied to covariance matrix during training
+        self.jitter = 0.1 # Jitter applied to covariance matrix during training
 
         if type(inducing_points)==int:
             self.Z = self.selectPoints(inducing_points) # Select inducing points
