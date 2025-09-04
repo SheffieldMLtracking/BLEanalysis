@@ -90,7 +90,7 @@ class Path:
         pass
     
 
-    def selectPoints(self, number, margin = 3):
+    def selectPoints(self, number, margin = 5):
         """Returns an array of one-dimensional (inducing) point locations, placed evenly over the domain of times
         in self.observation_times, with a margin added.
 
@@ -175,6 +175,7 @@ class Path:
         for i in np.linspace(0,n_test-1,7).astype(int):
             el = confidence_ellipse(posterior_mean[i::n_test],posterior_cov[i::n_test,i::n_test],ax,n_std=n_std)
             ax.add_patch(el)
+            plt.text(posterior_mean[i::n_test][0],posterior_mean[i::n_test][1],int(i))
         posterior_mean[0::n_test],posterior_cov[0::n_test,0::n_test]
 
 

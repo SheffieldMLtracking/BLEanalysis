@@ -147,9 +147,13 @@ class Signals:
         return data
 
     def configureTransmitter(self, transmitterID, timeOffset, angleOffset, transmitterLat, transmitterLon):
-        # TODO : Function to offset a specific transmitterID by an angle and a time
+        # TODO: add angle offset
         # TODO : normalise GPS locations around 0 and express in northing & easting
         self.transmitterLocations[transmitterID] = [[transmitterLat, transmitterLon]]
+        for packet in range(len(self.data)):
+            if self.data[packet][1] == ord(transmitterID):
+                self.data[packet][-1] -= timeOffset
+                self.data[packet][2] -= angleOffset
     
     def parseDataFromPcapPaste(self, filedata, transmitterIDs):
         """
@@ -178,6 +182,7 @@ class Signals:
                 dataPoint.append(int(packet[-5:-3] + packet[-2], 16)) # ANGLE
                 dataPoint.append(int(packet[3:5] + packet[6:8] + packet[9:11],16))
                 data.append(dataPoint)
+
         return np.array(data).astype(float)
 
     def averageRSSIsAtAngle(self,transmitterId=None,detrend=False,smooth=False,smoothwindow=np.deg2rad(2)):

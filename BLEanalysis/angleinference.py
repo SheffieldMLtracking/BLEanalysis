@@ -80,7 +80,7 @@ class AnglesUsePatternMeans(Angles):
 
 class AnglesUsePeaks(Angles):
     def __init__(self, varThreshold = 5):
-        self.varThreshold = varThreshold # Threshold to filter out bursts in which there is no obvious peak
+        self.varThreshold = varThreshold # TODO: Threshold to filter out bursts in which there is no obvious peak
 
     def infer(self,obs,obs_angles):
         observations = []
@@ -92,6 +92,8 @@ class AnglesUsePeaks(Angles):
             return np.nan
             
         else:
+            if len(obs) < 5:
+                return np.nan
             smoothed = savgol_filter(obs, window_length=5, polyorder=2) # TODO Better args?
             maxValueIndex = np.argmax(smoothed)
             return normalize_radians(obs_angles[maxValueIndex])

@@ -1,4 +1,7 @@
 import jax.numpy as np
+import jax.numpy as jnp
+from jax import vmap, jit
+from jax.lax import select, gt
 
 class Kernel:
     def __init__(self):
@@ -38,3 +41,57 @@ class ExponentiatedQuadraticKernel(Kernel):
         covariance *= axsel
         return covariance
 
+class EQIntegralKernel:
+    def __init__(self, lengthscale, scalefactor):
+        self.lengthscale = lengthscale
+        self.scalefactor = scalefactor
+
+    def fastErf(self, x):
+        # Abramowitz and Stegun approximation for erf(x)
+        a1 = 0.254829592
+        a2 = -0.284496736
+        a3 = 1.421413741
+        a4 = -1.453152027
+        a5 = 1.061405429
+        p  = 0.3275911
+
+        sign = jnp.sign(x)
+        absX = jnp.abs(x)
+        t = 1.0 / (1.0 + p * absX)
+
+        y = 1.0 - (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t) * jnp.exp(-absX**2)
+        return sign * y
+
+    def g(self, z):
+        return z * jnp.sqrt(jnp.pi) * self.fastErf(z) + jnp.exp(-z**2)
+
+    def k_xx(self, x, xprime):
+        l = self.lengthscale
+        return 0.5 * (l ** 2) * (
+            self.g(x / l) 
+            - self.g((x - xprime) / l) 
+            + self.g(xprime / l) 
+            - 1.0
+        )
+
+    def K(self, X, Xprime):
+        """Compute covariance matrix between X and Xprime.
+        
+        Both X and Xprime are arrays of shape [N, 2], where
+        - X[:, 0] are the inputs
+        - X[:, 1] are the class/label/group indices (for masking)
+
+        Returns:
+            Covariance matrix of shape [N, M].
+        """
+        # Extract coordinates and labels
+        x1, l1 = X[:, 0], X[:, 1]
+        x2, l2 = Xprime[:, 0], Xprime[:, 1]
+
+        # Compute full pairwise kernel matrix
+        k_fn = vmap(lambda xi: vmap(lambda xj: self.k_xx(xi, xj))(x2))(x1)
+        cov = k_fn * self.scalefactor
+
+        # Mask out entries where labels are equal
+        mask = (l1[:, None] != l2[None, :])
+        return cov * mask.astype(jnp.float32)
