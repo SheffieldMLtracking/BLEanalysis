@@ -57,7 +57,7 @@ class Signals:
         for transmitter_id in set(self.data[:,1]):
             print("%9s            %9d" % (chr(int(transmitter_id)),sum(self.data[:,1]==transmitter_id)))
 
-    def parseBursts(self, burstInterval= 5000):
+    def parseBursts(self, burstInterval= 5000, offset = 0):
         """
         Function to take the data parsed by this object using parseDataFromDevBoard or parseDataFromPcapPaste,
         and turn it into a struct with the burst scans separated out.
@@ -102,6 +102,8 @@ class Signals:
     
                 # Group rows by bin index
                 clusters = [currentTransmitterData[bin_indices == i] for i in np.unique(bin_indices)]
+
+        
                 
             
             for cluster in clusters:
@@ -109,10 +111,11 @@ class Signals:
                 currentCluster['transmitter_position'] = np.array(self.transmitterLocations[transmitterID])
                 currentCluster['rssis'] = cluster[:, 0]
                 currentCluster['angles'] = cluster[:, 2]
+                currentCluster['times'] = cluster[:, 3]
                 bursts.append(currentCluster)
                 times.append(int(np.mean(cluster[:, 3])))
         
-        
+        # returns the burst object and the times at which these bursts occur
         return bursts,times
         
 
