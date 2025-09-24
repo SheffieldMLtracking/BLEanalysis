@@ -2,6 +2,10 @@ import jax.numpy as np
 import jax.numpy as jnp
 from jax import vmap, jit
 from jax.lax import select, gt
+import tensorflow as tf
+import tensorflow_probability as tfp
+import tensorflow.math as tfmath
+from tensorflow_probability import distributions as tfd
 
 class Kernel:
     def __init__(self):
@@ -38,6 +42,19 @@ class ExponentiatedQuadraticKernel(Kernel):
         """
         covariance = (self.scalefactor ** 2) * np.exp(-(X[:,0:1]-Xprime[:,0:1].T)**2 / (2*self.lengthscale**2))
         axsel = X[:,1:2]==Xprime[:,1:2].T
+        covariance *= axsel
+        return covariance
+
+class TensorFlowExponentiatedQuadraticKernel(Kernel):
+    def __init__(self, lengthScale, scaleFactor):
+        self.lengthScale = lengthScale
+        self.scaleFactor = scaleFactor
+        
+    def K(self, X, Xprime):
+        # EQ kernel: scale^2 * exp((-(x-x')^2) / (2*ls^2))
+        covariance = (self.scaleFactor ** 2) * np.exp(-np.sum((np.subtract(X[:, None], Xprime[None, :])) ** 2 / (2 * self.lengthScale ** 2), 2))
+        print(covariance)
+        axsel = tf.cast((X[:,1][:,None]==Xprime[:,1][None,:]), dtype=tf.float32)
         covariance *= axsel
         return covariance
 

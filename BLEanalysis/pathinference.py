@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 key = random.key(0)
         
 class Path:
-    def __init__(self, observation_times, observations, kernel, inducing_points, ndims = 2):
+    def __init__(self, observation_times, observations, kernel, inducing_points, ndims = 2, jitter = 0.1):
         """
         Performs variational inference using the 'single angle only' observations to work out possible paths of the tag.
         
@@ -35,7 +35,7 @@ class Path:
         self.ndims = ndims
         #self.noise_scale = noise_scale # Noise scale of likelihood --> likelihood specific.
         self.kernel = kernel # Kernel function
-        self.jitter = 0.1 # Jitter applied to covariance matrix during training
+        self.jitter = jitter # Jitter applied to covariance matrix during training
 
         if type(inducing_points)==int:
             self.Z = self.selectPoints(inducing_points) # Select inducing points
@@ -73,8 +73,8 @@ class Path:
         # GP(Kzx Kzz^-1 y, Kzz - Kzx Kxx^-1 Kxz)
         Also - once modified for testing, can't use for training!
         """
-        self.Kzz = self.kernel.K(self.Z, self.Z) + np.eye(self.nind) * self.jitter
-        self.Kxx = self.kernel.K(X, X) + np.eye(X.shape[0]) * self.jitter
+        self.Kzz = self.kernel.K(self.Z, self.Z) + (np.eye(self.Z.shape[0], dtype=np.float32) * self.jitter)
+        self.Kxx = self.kernel.K(X, X) + (np.eye(X.shape[0], dtype=np.float32) * self.jitter)
         self.Kxz = self.kernel.K(X, self.Z)
         self.Kzx = self.Kxz.T
         self.KzzinvKzx = np.linalg.solve(self.Kzz, self.Kzx)
@@ -90,15 +90,15 @@ class Path:
         pass
     
 
-    def selectPoints(self, number, margin = 5):
+    def selectPoints(self, number, margin = 0.1):
         """Returns an array of one-dimensional (inducing) point locations, placed evenly over the domain of times
         in self.observation_times, with a margin added.
 
         TODO: Could make the margin depend on kernel lengthscale
         """
         
-        max_time = np.max(self.observation_times) + margin
-        min_time = np.min(self.observation_times) - margin       
+        max_time = np.max(np.array(self.observation_times)) + margin
+        min_time = np.min(np.array(self.observation_times)) - margin       
         result = []        
         for vector_observed in range(int(self.ndims)):        
             result.extend(np.c_[np.linspace(min_time, max_time, number), np.full(number, vector_observed)])
