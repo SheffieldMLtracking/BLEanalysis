@@ -61,6 +61,8 @@ class AnglesUsePatternMeans(Angles):
         
         Currently returns: logp,errs,avgAtAngles,keptObs
         """ 
+        
+        
         #obs and obs_angle can contain NaNs for missing observations.
         keep = ~np.isnan(obs_angles)
         
@@ -108,6 +110,8 @@ class AnglesUsePatternMeans(Angles):
         #    log(p(y_missing_items|theta) * p(y_not_missing_items|theta))
         #    Nmissing * log(p(missing|theta)) + logp (computed above)  
         logp += np.sum(~keep)*np.log(1/5) 
+        #logp = np.log(np.exp(logp)+1e-1000)
+
         #To compute the probability:
         #p = np.exp(logp - np.max(logp))
         #p/= np.sum(p)
@@ -207,9 +211,9 @@ class AnglesUseRejectionSampling(Angles):
             else:
                 if plot:
                     plt.plot(np.repeat(t, len(predangle)), predangle, '.k', markersize = 3, alpha = 0.01)
-            predictions.append([t, circmean(predangle)])
+            predictions.append([t, (2 * np.pi - circmean(predangle)) % (2 * np.pi)])
             
-        return predictions
+        return [x for x in predictions if not np.isnan(x[1])]
 
     
     def infer(self, testdata, angleOffset = 0, sampleInterval = 10, filterStd = 0.15, filterLen = 5, filterMean = 5, filter = True, plot = False):
@@ -243,7 +247,7 @@ class AnglesUseRejectionSampling(Angles):
             else:
                 if plot:
                     plt.plot(np.repeat(t, len(predangle)), predangle, '.k', markersize = 3, alpha = 0.01)
-            predictions.append([t, np.mean(predangle)])
+            predictions.append([t, (2 * np.pi - circmean(predangle)) % (2 * np.pi)])
             
         return predictions
 

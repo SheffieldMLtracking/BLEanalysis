@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.signal import savgol_filter as filter
-
+import pyproj
 
 class Signals:
     def __init__(self,filename=None,transmitterIDs=None,filedata=None,filetype=None,angleOffset=0,timeOffset=0):
@@ -44,6 +44,8 @@ class Signals:
 
         self.transmitterIDs = transmitterIDs
         self.transmitterLocations = {}
+        self.normalizedTransmitterLocations = {}
+        self.coordNormalisationFactor = [0,0]
         
         if filetype == 'log':
             self.data = self.parseDataFromDevBoard(self.filedata,self.transmitterIDs)
@@ -52,10 +54,20 @@ class Signals:
 
         self.data = self.standardizeAnglesAndTimes(self.data,angleOffset,timeOffset)
             
-    def summarise(self):
+    def summarise(self, showNormalised = True):
         print("Transmitter       Number of records")
         for transmitter_id in set(self.data[:,1]):
             print("%9s            %9d" % (chr(int(transmitter_id)),sum(self.data[:,1]==transmitter_id)))
+        plt.axis("equal")
+        if showNormalised:
+            for ID in self.transmitterIDs:
+                plt.scatter(self.normalizedTransmitterLocations[ID][0][1],self.normalizedTransmitterLocations[ID][0][0])
+                plt.text(self.normalizedTransmitterLocations[ID][0][1],self.normalizedTransmitterLocations[ID][0][0],str(ID))
+        else:
+            for ID in self.transmitterIDs:
+                plt.scatter(self.transmitterLocations[ID][0][1],self.transmitterLocations[ID][0][0])
+                plt.text(self.transmitterLocations[ID][0][1],self.transmitterLocations[ID][0][0],str(ID))
+
 
     def parseBursts(self, burstInterval= 5000, offset = 0):
         """
@@ -103,12 +115,9 @@ class Signals:
                 # Group rows by bin index
                 clusters = [currentTransmitterData[bin_indices == i] for i in np.unique(bin_indices)]
 
-        
-                
-            
             for cluster in clusters:
                 currentCluster = {}
-                currentCluster['transmitter_position'] = np.array(self.transmitterLocations[transmitterID])
+                currentCluster['transmitter_position'] = np.array(self.normalizedTransmitterLocations[transmitterID])
                 currentCluster['rssis'] = cluster[:, 0]
                 currentCluster['angles'] = cluster[:, 2]
                 currentCluster['times'] = cluster[:, 3]
@@ -150,14 +159,92 @@ class Signals:
         return data
 
     def configureTransmitter(self, transmitterID, timeOffset, angleOffset, transmitterLat, transmitterLon):
-        # TODO: add angle offset
-        # TODO : normalise GPS locations around 0 and express in northing & easting
+        # Express transmitter position in northing and easting
+        P = pyproj.Proj(proj='utm', zone=30, ellps='WGS84', preserve_units=True)
+        transmitterLon, transmitterLat = P(transmitterLon, transmitterLat)
         self.transmitterLocations[transmitterID] = [[transmitterLat, transmitterLon]]
+        
+        # Apply time and angle offset to all packets from this transmitter
         for packet in range(len(self.data)):
             if self.data[packet][1] == ord(transmitterID):
                 self.data[packet][-1] -= timeOffset
                 self.data[packet][2] -= angleOffset
+
+    def noramliseTransmitterLocs(self):
+        # Get average of coords to normalise
+        coords = [val[0] for val in self.transmitterLocations.values()]  # get [x,y] pairs
+        xs = [x for x, y in coords]
+        ys = [y for x, y in coords]
+        self.coordNormalisationFactor[0] = sum(xs) / len(xs)
+        self.coordNormalisationFactor[1] = sum(ys) / len(ys)
+
+        for ID in self.transmitterIDs:
+            currentLat = self.transmitterLocations[ID][0][0]
+            currentLon = self.transmitterLocations[ID][0][1]
+            # Update & store normalised coordinates of transmitter positions
+            self.normalizedTransmitterLocations[ID] = [[currentLat - self.coordNormalisationFactor[0],
+                                                                   currentLon - self.coordNormalisationFactor[1]]]
     
+    def subsampleBurst(self, dictionary, n, burstLength, method="random"):
+
+        # Get indexes of only times that fall within the burstLength window (regarded as starting the beginning of bursts)
+        dictionary['times'] = [x-np.min(dictionary['times']) for x in dictionary['times']]
+        packetIndexes = np.where(np.array(dictionary['times']) < burstLength)
+
+        # Select these indexes from the burst
+        dictionary['rssis'] = np.array(dictionary['rssis'])[packetIndexes]
+        dictionary['angles'] = np.array(dictionary['angles'])[packetIndexes]
+        dictionary['times'] = np.array(dictionary['times'])[packetIndexes]
+        
+        if n >= len(dictionary['rssis']):
+            return dictionary
+        elif method == "random":
+            samples = {}
+            samples['transmitter_position'] = dictionary['transmitter_position']
+            samples['rssis'] = []
+            samples['angles'] = []
+            samples['times'] = []
+            
+            # Randomly select unique indices
+            rand_indices = np.random.choice(len(dictionary['rssis']), size=n, replace=False)
+            
+            # Collect samples at those indices
+            samples['rssis'] = np.array([dictionary['rssis'][i] for i in rand_indices])
+            samples['angles'] = np.array([dictionary['angles'][i] for i in rand_indices])
+            samples['times'] = np.array([dictionary['times'][i] for i in rand_indices])
+            return samples
+            
+        elif method == "linspaceTimes":
+            samples = {}
+            samples['transmitter_position'] = dictionary['transmitter_position']
+            samples['rssis'] = []
+            samples['angles'] = []
+            samples['times'] = []
+            
+            # Times must be sorted, this happens in the parse burst method
+            times = np.linspace(dictionary['times'][0], dictionary['times'][-1], n)
+            indices = np.searchsorted(dictionary['times'], times)
+            indices = np.clip(indices, 0, len(times)-1)
+
+            samples['rssis'] = np.array([dictionary['rssis'][i] for i in indices])
+            samples['angles'] = np.array([dictionary['angles'][i] for i in indices])
+            samples['times'] = np.array([dictionary['times'][i] for i in indices])
+            return samples
+        elif method == "linspaceIdxs":
+            samples = {}
+            samples['transmitter_position'] = dictionary['transmitter_position']
+            samples['rssis'] = []
+            samples['angles'] = []
+            samples['times'] = []
+
+            idxs = np.linspace(0, len(dictionary['rssis'])-1, n)
+
+            # Collect samples at those indices
+            samples['rssis'] = np.array([dictionary['rssis'][int(i)] for i in idxs])
+            samples['angles'] = np.array([dictionary['angles'][int(i)] for i in idxs])
+            samples['times'] = np.array([dictionary['times'][int(i)] for i in idxs])
+            return samples
+            
     def parseDataFromPcapPaste(self, filedata, transmitterIDs):
         """
         TODO: Untested
@@ -231,7 +318,7 @@ class Signals:
         return np.array(avgRSSIatAngle), raw_data_atAngle
         
         
-    def getSample(self, burst_length, sample_interval, target_time=None, target_angle=None, accept_missing = 2,exclude_missing=10,raw=True):
+    def getSample(self, burst_length, sample_interval, target_time=None, target_angle=None, accept_missing = 0,exclude_missing=None,raw=True):
         """Generates one burst with required parameters
         This method is for sampling a whole bunch of times at once, as part of generating the training data.
         Specifically, using the object's 'data' array, containing columns [RSSI, ID, Angle(radians), Time(milliseconds)]
@@ -249,7 +336,7 @@ class Signals:
         
         if target_time is not None and target_angle is not None:
             raise Exception("Need to select EITHER target_time OR target_angle but not both.")
-        time_intervals = np.arange(-burst_length/2,burst_length,sample_interval)
+        time_intervals = np.arange(0,burst_length,sample_interval)
         
         data_starttime = np.min(self.data[:,3])
         data_endtime = np.max(self.data[:,3])
@@ -279,4 +366,11 @@ class Signals:
             break
             
         return rssis, angles
+
+    def getDataFromOneTransmitter(self, transmitterID):
+        packets = []
+        for packet in range(len(self.data)):
+            if self.data[packet][1] == ord(transmitterID):
+                packets.append(self.data[packet])
+        return np.array(packets)
         
