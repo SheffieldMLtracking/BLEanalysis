@@ -27,7 +27,7 @@ def getSample(data, time, time_intervals,raw=False,exclude_missing=10):
     index = np.argmin(np.abs(data[:, -1:] - times[None,:]), 0)       
     rssis = data[index,0]
     if exclude_missing is not None:
-        rssis[(np.abs(data[:, -1:] - times[None,:]))[index,range(len(index))]>=exclude_missing]=np.NaN
+        rssis[(np.abs(data[:, -1:] - times[None,:]))[index,range(len(index))]>=exclude_missing]=np.nan
         #print((np.abs(data[:, -1:] - times[None,:]))[index,range(len(index))]>=exclude_missing)
     if not raw:       
         rssis-=rssis[0] #NOTE: I've switched to making the first time the angle index time as we could have an unknown number of time_intervals.        
