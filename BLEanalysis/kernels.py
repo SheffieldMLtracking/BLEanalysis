@@ -47,34 +47,8 @@ class EQIntegralKernel:
         self.lengthscale = lengthscale
         self.scalefactor = scalefactor
 
-    def fastErf(self, x):
-        # Abramowitz and Stegun approximation for erf(x)
-        a1 = 0.254829592
-        a2 = -0.284496736
-        a3 = 1.421413741
-        a4 = -1.453152027
-        a5 = 1.061405429
-        p  = 0.3275911
-
-        sign = jnp.sign(x)
-        absX = jnp.abs(x)
-        t = 1.0 / (1.0 + p * absX)
-
-        y = 1.0 - (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t) * jnp.exp(-absX**2)
-        return sign * y
-
     def g(self, z):
-        #return z * jnp.sqrt(jnp.pi) * jsp.special.erf(z) + jnp.exp(-z**2)
-        sqrt_pi = jnp.sqrt(jnp.pi)
-        erfz = jsp.special.erf(z)
-        expmz2 = jnp.exp(-z**2)
-
-        # Stabilize using where for large z
-        large = jnp.abs(z) > 6.0
-        g_large = z * sqrt_pi * jnp.sign(z)
-        g_small = z * sqrt_pi * erfz + expmz2
-
-        return jnp.where(large, g_large, g_small)
+        return z * jnp.sqrt(jnp.pi) * jsp.special.erf(z) + jnp.exp(-z**2)
 
     def k_xx(self, x, xprime):
         l = self.lengthscale

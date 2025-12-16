@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 
 from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
-key = random.key(0)
+#key = random.key(0)
 
 class Path:
     def __init__(self, observation_times, observations, kernel, inducing_points, ndims = 2, margin = 0.1, jitter = 0.1):
@@ -33,12 +33,16 @@ class Path:
                   If the former, the class places inducing points, with some before and after the data.
          ndims : the numbers of spatial dimensions (default = 2).
         """
+        self.key = random.PRNGKey(0)
         self.observations = observations # Angle observations made
         self.observation_times = observation_times # Times observations were made at
         self.ndims = ndims
         #self.noise_scale = noise_scale # Noise scale of likelihood --> likelihood specific.
         self.kernel = kernel # Kernel function
         self.jitter = jitter # Jitter applied to covariance matrix during training
+
+        self.startime = 0
+        self.endtime = 999
 
         if type(inducing_points)==int:
             self.Z = self.selectPoints(inducing_points, margin) # Select inducing points
@@ -122,8 +126,9 @@ class Path:
         
         
     def calc_elbo(self,surrogate_mean,surrogate_cov_tril):
+        self.key, subkey = random.split(self.key)
         posterior_mean, posterior_cov, surrogate_cov = self.get_posterior_distribution_parameters(surrogate_mean,surrogate_cov_tril)
-        samples = mvn(key,posterior_mean,posterior_cov,(self.number_samples,)) #number_samples x number_obserations
+        samples = mvn(subkey,posterior_mean,posterior_cov,(self.number_samples,)) #number_samples x number_obserations
 
         #compute ELBO: -(ll - KLdivergence)
         lls = self.compute_log_likelihood(samples) #log likelhioods of the samples
@@ -134,9 +139,9 @@ class Path:
         self.number_samples = number_samples
         self.iterations=iterations
         self.precompute_matrices(self.X)
-
+        self.key, subkey = random.split(self.key)
         optimizer = optax.adam(learning_rate)
-        surrogate_mean = normal(key,(self.nind, ))*20
+        surrogate_mean = normal(subkey,(self.nind, ))*20
         surrogate_cov_tril = np.eye(self.nind)
         opt_state = optimizer.init((surrogate_mean,surrogate_cov_tril))
 
@@ -197,11 +202,11 @@ class Path:
                 lat.append(float(coord[3]))
                 lon.append(float(coord[4]))
             GPSxx, GPSyy = P(lon,lat)
-            plt.plot(GPSxx, GPSyy)
+            plt.plot(GPSxx, GPSyy, label="GNSS Ground Truth")
             
         times = np.linspace(startTime,endTime,n_test)
         posterior_mean, posterior_cov = self.get_predictions(times)
-        plt.plot(posterior_mean[:n_test] + coordScaleFactor[1],posterior_mean[n_test:] + coordScaleFactor[0],'-')
+        plt.plot(posterior_mean[:n_test] + coordScaleFactor[1],posterior_mean[n_test:] + coordScaleFactor[0],'-', label="Inferred Path")
         for i in np.linspace(0,n_test-1,ellipseInterval).astype(int):
             el = confidence_ellipse([posterior_mean[i::n_test][0] + coordScaleFactor[1], posterior_mean[i::n_test][1] + coordScaleFactor[0]], 
                                     posterior_cov[i::n_test,i::n_test],ax,n_std=n_std)
@@ -244,7 +249,9 @@ class Path:
                                        + np.square(syntheticPath[point][1] - (posterior_mean[n_test:][point] + coordScaleFactor[0]))))),2)
             plt.text(.02, .98, 'MAE: ' + str(round(MAE/n_test, 2)) + 'm', ha='left', va='top', transform=ax.transAxes)
 
-        return MAE
+        plt.legend(loc="lower left")
+        
+        return MAE/n_test
 
 class Path_VectorsToBee(Path):
     def __init__(self, observation_times, observations, kernel, inducing_points, noise_scale=0.1, ndims = 2, margin = 0.1, jitter = 0.1):
@@ -278,19 +285,40 @@ class Path_ProbabilityDensitiesToBee(Path):
         super().__init__(observation_times, burst_observations, kernel, inducing_points, ndims, margin, jitter)
 
     def prepare_likelihood(self):
-        all_pdfs = []
         all_lpdfs = []
         all_ypos = []
         all_argmax_angles = []
-        for i,obs in enumerate(self.y):
-            lpdf,_,_,_ = self.angles.infer(obs['rssis'],obs['angles'])    
+    
+        for obs in self.y:
+            lpdf, _, _, _ = self.angles.infer(obs['rssis'], obs['angles'])
             all_lpdfs.append(lpdf)
-            all_ypos.append([obs['transmitter_position'][0][1],obs['transmitter_position'][0][0]])
+            all_ypos.append([
+                obs['transmitter_position'][0][1],
+                obs['transmitter_position'][0][0]
+            ])
             all_argmax_angles.append(np.deg2rad(np.argmax(lpdf)))
-        self.y_vects = np.array(all_lpdfs)
-        self.y_angles = np.array(all_argmax_angles)
-        self.y_pos = np.array(all_ypos).T.reshape(len(self.y)*self.ndims)
+    
+        self.y_vects = jax.device_put(np.array(all_lpdfs))
+        self.y_angles = jax.device_put(np.array(all_argmax_angles))
+        self.y_pos = jax.device_put(
+            np.array(all_ypos).T.reshape(len(self.y) * self.ndims)
+        )
+    
+    #def prepare_likelihood(self):
+    #    all_pdfs = []
+    #    all_lpdfs = []
+    #    all_ypos = []
+    #    all_argmax_angles = []
+    #    for i,obs in enumerate(self.y):
+    #        lpdf,_,_,_ = self.angles.infer(obs['rssis'],obs['angles'])
+    #        all_lpdfs.append(lpdf)
+    #        all_ypos.append([obs['transmitter_position'][0][1],obs['transmitter_position'][0][0]])
+    #        all_argmax_angles.append(np.deg2rad(np.argmax(lpdf)))
+    #    self.y_vects = np.array(all_lpdfs)
+    #    self.y_angles = np.array(all_argmax_angles)
 
+    #    self.y_pos = np.array(all_ypos).T.reshape(len(self.y)*self.ndims)
+        
     def compute_log_likelihood(self,samples):
         #We need to get what the probability of each sample is
         #1) Subtract the location of each transmitter

@@ -19,7 +19,7 @@ class SimpleDemo:
         base_x = 10 * t
     
         # Smooth curve along y (a sine-based curve)
-        curve_amplitude = 20   # how "tall" the curve is
+        curve_amplitude = 30   # how "tall" the curve is
         curve_frequency = 0.2  # lower = smoother, longer wavelength
         base_y = 5 * t + curve_amplitude * np.sin(2 * np.pi * curve_frequency * t)
     
@@ -32,8 +32,8 @@ class SimpleDemo:
         """
         
         # Location of transmitters
-        a = [-15,15]
-        e = [25,-25]
+        a = [-20,15]
+        e = [30,-25]
         self.stationlocations = np.array([a,e])
         # Time for each observation in order that observations are stored in observations[]
         if obstimes is None:

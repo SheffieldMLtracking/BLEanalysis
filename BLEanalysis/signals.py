@@ -190,7 +190,6 @@ class Signals:
         # Get indexes of only times that fall within the burstLength window (regarded as starting the beginning of bursts)
         dictionary['times'] = [x-np.min(dictionary['times']) for x in dictionary['times']]
         packetIndexes = np.where(np.array(dictionary['times']) < burstLength)
-
         # Select these indexes from the burst
         dictionary['rssis'] = np.array(dictionary['rssis'])[packetIndexes]
         dictionary['angles'] = np.array(dictionary['angles'])[packetIndexes]
