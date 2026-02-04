@@ -36,7 +36,7 @@ class AnglesUsePatternMeans(Angles):
          noisevar : the noise variance in the observations at test time (might be in dB^2?)
          """
         if sigs is None:
-            sigs = Signals("../bluetooth_experiments/no rf amp experiments/noamploc2long.log",'d',angleOffset = 38)
+            sigs = Signals("/home/finley/Git/bluetooth_experiments/no rf amp experiments/noamploc2long.log",'d',angleOffset = 38)
        
         """
         - an array of averages. Each row contains:

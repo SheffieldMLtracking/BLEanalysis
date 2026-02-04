@@ -3,5 +3,9 @@ scipy
 matplotlib
 tensorflow
 tf_keras
-tensorflow_probability
+tensorflow_probability==0.24.0
 pyproj
+jax==0.4.28
+jaxlib==0.4.28
+optax==0.2.0
+numpy==1.26.4
