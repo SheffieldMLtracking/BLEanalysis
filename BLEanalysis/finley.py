@@ -99,7 +99,7 @@ class BlePacket:
 
 class Transmitter:
     """
-    Represents a Bluetooth LE transmitter. Stores its coordinates in longitude & latitude
+    Represents a Bluetooth LE transmitter. Stores its coordinates in both longitude & latitude
     and northing & easting format.
     """
     def __init__(self, tx_id :str, longitude :float, latitude :float, altitude :float):
