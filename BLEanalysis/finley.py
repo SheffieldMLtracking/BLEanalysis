@@ -1,8 +1,6 @@
 from convertbng.util import convert_bng
 import math
-from BLEanalysis.signals import Signals
 import csv
-import numpy as np
 
 class GpsLog:
     """
@@ -63,39 +61,49 @@ class GpsLog:
 
         return gps_log
 
+class BleLog:
+    def __init__(self, log_file_path :str, transmitter):
+        self.transmitter = transmitter
+        self.packets = []
+
+        self.parse_log(log_file_path)
+
+    def parse_log(self, file_path :str):
+        """
+        Turns a raw log file from a BLE tag into a list of [BlePacket] objects
+        with normalised time stamps
+        :rtype: list
+        """
+        with open(file_path, 'r') as log_file:
+            log_file.readline() # ignore the first line
+            unsplit_log_data = log_file.read()
+            log_data = unsplit_log_data[54:].split('\n')
+
+        # set time offset as timestamp of first ever (valid) packet
+        for data in log_data:
+            if len(data) == 29 and data[27:28] == self.transmitter.tx_id:
+                time_offset = int(data[14:16] + data[17:19] + data[20:22], 16)
+                break
+
+        for data in log_data:
+            if len(data) == 29 and data[27:28] == self.transmitter.tx_id:
+                self.packets.append(BlePacket(
+                    -int(data[7:9]), # RSS
+                    int(int(data[23:25] + data[26:27], 16)), # transmitter angle
+                    (int(data[14:16] + data[17:19] + data[20:22], 16) - time_offset) * 1e-3
+                ))
+
 class BlePacket:
     """
     Stores a single BLE packet collected by the bee tags
     """
-    def __init__(self, rss :int, transmitter :np.float64, angle :float, time :float, time_offset :float):
+    def __init__(self, rss :int, angle :float, time :float):
         self.rss = rss
-        self.transmitter = chr(transmitter.astype(int))
         self.angle = angle
-        self.time = (time - time_offset) * 1e-3
+        self.time = time
 
     def __str__(self):
-        return f"Time: {self.time}, RSS: {self.rss}, Transmitter: {self.transmitter}, Angle: {self.angle}"
-
-    @staticmethod
-    def parse_log(file_path :str, transmitter :str, start = 200, end = 500):
-        """
-        Turns a raw log file from a BLE tag into a list of [BlePacket] objects
-        with normalised time stamps. Removes the first and last few packets
-        :rtype: list
-        """
-        packets = Signals(file_path, [transmitter] ,filetype='log',angleOffset=0).data[start:-end]
-
-        time_offset = packets[0, 3]
-        parsed_packets = []
-
-        for pkt in packets:
-            parsed_packets.append(BlePacket(int(pkt[0]), pkt[1], pkt[2], pkt[3], time_offset))
-
-        time_end = packets[-1, 3]
-        print(f"BlePacket.parse_log: transmitter: {parsed_packets[0].transmitter}, time range: {time_offset} "
-              f"to {time_end} ({(time_end - time_offset) * 1e-3}s total), num. packets: {len(parsed_packets)}")
-
-        return parsed_packets
+        return f"BlePacket | Time: {self.time}, RSS: {self.rss}, Angle: {self.angle}"
 
 class Transmitter:
     """
@@ -115,3 +123,13 @@ class Transmitter:
     def __str__(self):
         return (f"Transmitter ID: {self.tx_id}; lon, lat: ({self.longitude}, {self.latitude}); altitude: {self.altitude}"
                 f"easting, northing: ({self.easting}, {self.northing})")
+
+if __name__ == "__main__":
+    tx_a = Transmitter('a', -1.448596, 53.368606, 131.0)
+    log_a = BleLog(
+        "/home/finley/Git/BLEanalysis/bluetooth_experiments/March 26 2025 Field Trial/straightpath5/straightpath5noperson.log",
+        tx_a
+    )
+    print(len(log_a.packets))
+    print(log_a.packets[0])
+    print(log_a.packets[-1])
