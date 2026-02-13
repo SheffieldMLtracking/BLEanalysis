@@ -4,6 +4,45 @@ import csv
 
 class GpsLog:
     """
+    Stores all the GPS points in a GPS log file. Parses the
+    data points in from a CSV file.
+    """
+    def __init__(self, gps_file_path :str):
+        self.data = []
+        
+        self.parse_csv(gps_file_path)
+    
+    def parse_csv(self, gps_file_path :str):
+        """
+        Turns a CSV file of GPS data into an array of [GpsLog]
+        gps data with time stamps and displacements
+        relative to the first data point
+        :param gps_file_path: File path of the CSV file
+        """
+        with open(gps_file_path, 'r') as csvfile:
+            next(csvfile)
+            reader = csv.reader(csvfile, delimiter=',')
+
+            # set the starting position etc.
+            first_row = next(reader)
+
+            gps_time_offset = float(first_row[2])
+            start_easting, start_northing = (ls[0] for ls in convert_bng(float(first_row[4]), float(first_row[3])))
+            start_altitude = float(first_row[5])
+
+            # add the first log to the data points
+            self.data.append(GpsData(float(first_row[2]), float(first_row[3]), float(first_row[4]), float(first_row[5]),
+                    gps_time_offset, start_northing, start_easting, start_altitude))
+
+            # turn each CSV line into a GpsData object
+            for row in reader:
+                self.data.append(GpsData(
+                    float(row[2]), float(row[3]), float(row[4]), float(row[5]),
+                    gps_time_offset, start_northing, start_easting, start_altitude
+                ))
+
+class GpsData:
+    """
     Stores a single GPS log outputted by a GPS device
     """
     def __init__(self, unix_time, lat, lon, alt, time_offset, start_northing, start_easting, start_alt):
@@ -26,42 +65,14 @@ class GpsLog:
             return math.sqrt((self.northing - northing)**2 + (self.easting - easting)**2)
 
     def __str__(self):
-        return (f"Time: {self.relative_time}, Northing: {self.northing}, Easting: {self.easting}, "
-                f"Alt: {self.altitude}, Displacement: {self.displacement}")
-
-    @staticmethod
-    def parse_csv(file_path :str):
-        """
-        Turns a CSV file of GPS data into an array of [GpsLog]
-        data with normalised time stamps
-        :param file_path: File path of the CSV file
-        :rtype: list
-        """
-        gps_log = []
-
-        with open(file_path, 'r') as csvfile:
-            next(csvfile)
-            reader = csv.reader(csvfile, delimiter=',')
-
-            # set the starting position etc.
-            first_row = next(reader)
-            gps_time_offset = float(first_row[2])
-            start_easting, start_northing = (ls[0] for ls in convert_bng(float(first_row[4]), float(first_row[3])))
-            start_altitude = float(first_row[5])
-
-            print(f"Starting: time {gps_time_offset}, northing {start_northing}, easting {start_easting}, alt: {start_altitude}")
-
-            for row in reader:
-                gps_log.append(GpsLog(
-                    float(row[2]), float(row[3]), float(row[4]), float(row[5]), gps_time_offset, start_northing, start_easting, start_altitude
-                ))
-
-        print(f"GpsLog.parse_csv: time range is {gps_log[-1].relative_time:.3f}s, end displacement: "
-              f"{gps_log[-1].displacement:.3f}m, end altitude difference: {gps_log[-1].altitude - start_altitude:.3f}m")
-
-        return gps_log
+        return (f"GpsData | Time: {self.relative_time:.3f}, Northing: {self.northing}, Easting: {self.easting}, "
+                f"Alt: {self.altitude}, Displacement: {self.displacement:.3f}")
 
 class BleLog:
+    """
+    Stores all the BLE packets received from a specific transmitter.
+    Parses the data directly from a log file produced by the tag
+    """
     def __init__(self, log_file_path :str, transmitter):
         self.transmitter = transmitter
         self.packets = []
@@ -125,6 +136,7 @@ class Transmitter:
                 f"easting, northing: ({self.easting}, {self.northing})")
 
 if __name__ == "__main__":
+    # test code
     tx_a = Transmitter('a', -1.448596, 53.368606, 131.0)
     log_a = BleLog(
         "/home/finley/Git/BLEanalysis/bluetooth_experiments/March 26 2025 Field Trial/straightpath5/straightpath5noperson.log",
@@ -133,3 +145,8 @@ if __name__ == "__main__":
     print(len(log_a.packets))
     print(log_a.packets[0])
     print(log_a.packets[-1])
+
+    gps = GpsLog("/home/finley/Git/BLEanalysis/bluetooth_experiments/March 26 2025 Field Trial/straightpath5/2025-03-26_11_50_22_my_iOS_device.csv")
+    print(len(gps.data))
+    print(gps.data[0])
+    print(gps.data[-1])
