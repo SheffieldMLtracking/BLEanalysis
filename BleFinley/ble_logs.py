@@ -67,6 +67,10 @@ class BleLog:
                     time
                 ))
 
+    def all_rss(self) -> list[int]:
+        """Gets all the RSSes from all the packets in a list"""
+        return [getattr(packet, "rss") for packet in self.packets]
+
     def all_rss_at_gamma(self, gamma :float, show_log = False) -> list[int]:
         """
         Returns a list of all the RSS measurements of packets with a given gamma.
@@ -75,7 +79,10 @@ class BleLog:
         :param show_log: If True, prints log information
         :returns: List of rss measurements
         """
-        current_packet = min(self.packets[:200], key=lambda packet: abs((packet.angle - gamma) % 360))
+        start_index = 200 if len(self.packets) * 0.1 > 200 else int(len(self.packets) * 0.1)
+
+        current_packet = min(self.packets[start_index:start_index + 300],
+                             key=lambda packet: abs((packet.angle - gamma) % 360))
         current_index = self.packets.index(current_packet)
         rss_values = [current_packet.rss]
         print(f"all_rss_at_gamma | start time: {current_packet.time:.3f}") if show_log else None
