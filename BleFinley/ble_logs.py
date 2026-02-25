@@ -1,5 +1,6 @@
 from BleFinley.gps_logs import *
 from BleFinley.transmitter import Transmitter
+import math
 
 
 class BleLog:
@@ -95,6 +96,43 @@ class BleLog:
             print(f"all_rss_at_gamma | {len(rss_values)} packets found") if show_log else None
             return rss_values
 
+class BleLogStatic(BleLog):
+    """
+    Stores all the information about an experiment where
+    the tag was stationary. Adjusts the gammas so 0 degrees
+    is facing directly at the tag
+    """
+    def __init__(self, log_file_path :str, transmitter :Transmitter, longitude :float, latitude :float, altitude :float):
+        super().__init__(log_file_path, transmitter, None)
+
+        self.easting, self.northing = (int(ls[0]) for ls in convert_bng(longitude, latitude))
+        self.altitude = altitude
+
+        self.angle_offset = self._calc_angle_offset()
+        self._shift_gammas()
+
+        print(f"BleLogStatic | angle offset: {self.angle_offset:.3f}")
+
+    def _calc_angle_offset(self) -> float:
+        delta_northing = self.northing - self.transmitter.northing
+        delta_easting = self.easting - self.transmitter.easting
+        angle = math.degrees(
+            math.atan(abs(delta_northing) / abs(delta_easting))
+        )
+
+        if delta_easting > 0 and delta_northing > 0:
+            return -(90 - angle)
+        elif delta_easting > 0 and delta_northing < 0:
+            return -(90 + angle)
+        elif delta_easting < 0 and delta_northing < 0:
+            return -(270 - angle)
+        else:
+            return -(270 + angle)
+
+    def _shift_gammas(self):
+        for packet in self.packets:
+            packet.shift_gamma(self.angle_offset)
+
 class BlePacket:
     """
     Stores a single BLE packet collected by the bee tags
@@ -103,6 +141,9 @@ class BlePacket:
         self.rss = rss
         self.angle = angle
         self.time = time
+
+    def shift_gamma(self, shift_angle :float):
+        self.angle = (self.angle + shift_angle) % 360
 
     def __str__(self):
         return f"BlePacket | Time: {self.time}, RSS: {self.rss}, Angle: {self.angle}"
