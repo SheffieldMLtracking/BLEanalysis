@@ -82,22 +82,29 @@ class BleLog:
         start_index = 200 if len(self.packets) * 0.1 > 200 else int(len(self.packets) * 0.1)
 
         current_packet = min(self.packets[start_index:start_index + 300],
-                             key=lambda packet: abs((packet.angle - gamma) % 360))
+                             key=lambda packet: (packet.angle - gamma) % 360)
         current_index = self.packets.index(current_packet)
         rss_values = [current_packet.rss]
         print(f"all_rss_at_gamma | start time: {current_packet.time:.3f}") if show_log else None
 
         try:
-            while True:
+            while current_index < len(self.packets):
                 # range of time values of packets ~2s since the previous one
                 search_start_time = current_packet.time + 1.75
                 search_end_time = current_packet.time + 2.25
 
                 search_space = list(filter(lambda packet: search_start_time <= packet.time <= search_end_time,
                                            self.packets[current_index + 1: current_index + 500]))
+
+                if not search_space:
+                    # skip to the next transmitter rotation
+                    search_start_time += 2
+                    search_end_time += 2
+                    search_space = list(filter(lambda packet: search_start_time <= packet.time <= search_end_time,
+                                               self.packets[current_index + 1: current_index + 500]))
+
                 current_packet = min(search_space, key=lambda packet: abs((gamma - packet.angle) % 360))
                 current_index = self.packets.index(current_packet)
-
                 rss_values.append(current_packet.rss)
         finally:
             print(f"all_rss_at_gamma | {len(rss_values)} packets found") if show_log else None
