@@ -7,5 +7,8 @@ pyproj
 jax==0.4.28
 jaxlib==0.4.28
 optax==0.2.0
-numpy==1.26.4
+numpy #==1.26.4
 convertbng
+pymc==5.28.1
+ipywidgets
+arviz
