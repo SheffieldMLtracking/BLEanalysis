@@ -167,7 +167,7 @@ class AnglesRejectionSampling(Angles):
         #real empirically collected data, and later sample from it... we could instead skip this
         #step and just call getRSSI later when we want to getSample. TODO Decide if we should rewrite...
 
-        data = sigs.data
+        data = sigs.data_points
         self.data = data
 
         #this is a dictionary, it is a cache/store of tables of training sets, each with a different set of time_intervals.

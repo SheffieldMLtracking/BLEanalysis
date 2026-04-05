@@ -202,6 +202,7 @@ class Path:
         times = np.linspace(startTime,endTime,n_test)
         posterior_mean, posterior_cov = self.get_predictions(times)
         plt.plot(posterior_mean[:n_test] + coordScaleFactor[1],posterior_mean[n_test:] + coordScaleFactor[0],'-')
+
         for i in np.linspace(0,n_test-1,ellipseInterval).astype(int):
             el = confidence_ellipse([posterior_mean[i::n_test][0] + coordScaleFactor[1], posterior_mean[i::n_test][1] + coordScaleFactor[0]], 
                                     posterior_cov[i::n_test,i::n_test],ax,n_std=n_std)

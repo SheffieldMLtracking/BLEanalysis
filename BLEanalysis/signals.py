@@ -117,7 +117,7 @@ class Signals:
 
             for cluster in clusters:
                 currentCluster = {}
-                currentCluster['transmitter_position'] = np.array(self.normalizedTransmitterLocations[transmitterID])
+                currentCluster['transmitter_position'] = [] # np.array(self.normalizedTransmitterLocations[transmitterID])
                 currentCluster['rssis'] = cluster[:, 0]
                 currentCluster['angles'] = cluster[:, 2]
                 currentCluster['times'] = cluster[:, 3]

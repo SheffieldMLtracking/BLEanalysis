@@ -94,14 +94,14 @@ class BleLog:
                 search_end_time = current_packet.time + 2.25
 
                 search_space = list(filter(lambda packet: search_start_time <= packet.time <= search_end_time,
-                                           self.packets[current_index + 1: current_index + 500]))
+                                           self.packets[current_index + 1: current_index + 250]))
 
                 if not search_space:
                     # skip to the next transmitter rotation
                     search_start_time += 2
                     search_end_time += 2
                     search_space = list(filter(lambda packet: search_start_time <= packet.time <= search_end_time,
-                                               self.packets[current_index + 1: current_index + 500]))
+                                               self.packets[current_index + 1: current_index + 250]))
 
                 current_packet = min(search_space, key=lambda packet: abs((gamma - packet.angle) % 360))
                 current_index = self.packets.index(current_packet)
