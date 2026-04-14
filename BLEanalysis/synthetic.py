@@ -2,9 +2,29 @@ import numpy as np
 import matplotlib.pyplot as plt
 from BLEanalysis.signals import Signals
 
+def vecToBearing(x, y):
+    """
+    Convert a 2D vector (x, y) into a bearing angle in degrees.
+    Bearing is measured clockwise from North.
+    """
+    angle_rad = np.arctan2(x, y)  # Note: atan2 is (y, x) normally, but swapped to make 0° = North
+    angle_deg = np.rad2deg(angle_rad)
+    bearing = (angle_deg + 360) % 360  # Normalize to 0–360°
+    return bearing
+
 class SimpleDemo:
     def get_location_at_time(self,t):
-        return np.array([(1*t)*10+10,(1*t)*10])
+        """Generate a single smooth curve"""
+        # Overall forward motion along x
+        base_x = 10 * t
+    
+        # Smooth curve along y (a sine-based curve)
+        curve_amplitude = 30   # how "tall" the curve is
+        curve_frequency = 0.2  # lower = smoother, longer wavelength
+        base_y = 5 * t + curve_amplitude * np.sin(2 * np.pi * curve_frequency * t)
+    
+        return np.array([base_x, base_y]) - 20
+        
     def __init__(self,obstimes=None):
         """Create simple straight line, synthetic data
         
@@ -12,8 +32,8 @@ class SimpleDemo:
         """
         
         # Location of transmitters
-        a = [28,40]
-        e = [63,15]
+        a = [-20,15]
+        e = [30,-25]
         self.stationlocations = np.array([a,e])
         # Time for each observation in order that observations are stored in observations[]
         if obstimes is None:
@@ -25,6 +45,8 @@ class SimpleDemo:
         # Populate observations[] with [x, y, z] vectors
         self.observations = []
         self.trueLocations = []
+        self.trueAngles = []
+        self.trueAngles = []
         for i,t in enumerate(self.obstimes):
             #location = np.array([(1*t)*10+10 + np.random.randint(1,5),(1*t)*10 + np.random.randint(1,5)]) #TODO: @Chris - why is their so much white noise added to the location?!
             location = self.get_location_at_time(t)
@@ -33,12 +55,17 @@ class SimpleDemo:
             possibleobs = np.c_[self.stationlocations,vect]
             obs = possibleobs[i%2,:]
             self.observations.append(obs)
+        for x in np.linspace(0,5,100):
+            location = self.get_location_at_time(x)
             self.trueLocations.append(location)
         # observations[observer_x, observer_y, observer_z (unused), observation_x, observation_y, observation_z (unused)]
         # NOTE: Need to convert bearing in radians to directional vector
         # V.x = cos(B)
         # V.y = sin(B)
         self.observations = np.array(self.observations)
+        # populate array of observation angles, useful for testing
+        for obs in self.observations:
+            self.trueAngles.append(vecToBearing(obs[2],obs[3]))
         # Tuples of x,y,z(unused) coords in order
         self.trueLocations = np.array(self.trueLocations)
 
@@ -48,8 +75,8 @@ class SimpleDemo:
         TODO Switch to using axis object
         """
         plt.axis('equal')
-        plt.plot(self.trueLocations[:,0],self.trueLocations[:,1],'x-')
-        plt.axis('equal')
+        #plt.plot(self.trueLocations[:,0],self.trueLocations[:,1],'x-')
+        #plt.axis('equal')
         for obs in self.observations:
             plt.plot([obs[0],obs[0]+obs[2]*30],[obs[1],obs[1]+obs[3]*30],color='grey',alpha=0.1)
         plt.title("Synthetic Path")
@@ -68,9 +95,9 @@ class SignalDemo(SimpleDemo):
         
         new_observations = []
         for obs in self.observations:
-            synthetic_angle = np.arctan2(obs[3],obs[2])
+            synthetic_angle = np.arctan2(obs[2],obs[3])
             data_rssis,data_angles = sigs.getSample(burst_length, sample_interval,exclude_missing=20)
-            new_obs = {'transmitter_position':obs[:2],'rssis':data_rssis,'angles':data_angles-synthetic_angle}
+            new_obs = {'transmitter_position':[obs[:2]],'rssis':data_rssis,'angles':data_angles-synthetic_angle}
             
             new_observations.append(new_obs)
         self.burst_observations = new_observations

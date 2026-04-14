@@ -2,8 +2,12 @@ import numpy as np
 from matplotlib.patches import Ellipse
 import matplotlib.transforms as transforms
 import jax.numpy as jnp
+import tensorflow_probability.substrates.jax as tfp
+
 
 def kl_mvn(m0, S0, m1, S1):
+    #return 0
+    tfd = tfp.distributions
     """
     Kullback-Liebler divergence from Gaussian pm,pv to Gaussian qm,qv.
     Also computes KL divergence from a single Gaussian pm,pv to a set
@@ -18,15 +22,16 @@ def kl_mvn(m0, S0, m1, S1):
     copied from https://stackoverflow.com/a/55688087
     """
     # store inv diag covariance of S1 and diff between means
-    N = m0.shape[0]
-    iS1 = jnp.linalg.inv(S1)
-    diff = m1 - m0
+    #N = m0.shape[0]
+    #iS1 = jnp.linalg.inv(S1)
+    #diff = m1 - m0
 
     # kl is made of three terms
-    tr_term   = jnp.trace(iS1 @ S0)
-    det_term  = jnp.log(jnp.linalg.det(S1)/jnp.linalg.det(S0))
-    quad_term = diff.T @ jnp.linalg.inv(S1) @ diff
-    return .5 * (tr_term + det_term + quad_term - N) 
+    #tr_term   = jnp.trace(iS1 @ S0)
+    #det_term  = jnp.log(jnp.linalg.det(S1)/jnp.linalg.det(S0))
+    #quad_term = diff.T @ jnp.linalg.inv(S1) @ diff
+    #return .5 * (tr_term + det_term + quad_term - N) 
+    return tfd.kl_divergence(tfd.MultivariateNormalFullCovariance(m0,S0), tfd.MultivariateNormalFullCovariance(m1,S1))
 
 def confidence_ellipse(mean, cov, ax, n_std=3.0, fill=False, opacity=1, **kwargs):
     """Draws an ellipse to illustrate a Gaussian with given mean and covariance.
