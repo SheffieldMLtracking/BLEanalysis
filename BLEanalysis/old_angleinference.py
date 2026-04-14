@@ -219,5 +219,5 @@ class AnglesRejectionSampling(Angles):
 
         obs = obs - obs[0]
         #matchingrowindices = np.all(np.abs(training_data[:,:-1]-obs)<rejection_threshold,1)
-        matchingrowindices = np.mean((training_data[:,:-1]-obs)**2,1)<rejection_threshold
+        matchingrowindices = np.std((training_data[:,:-1]-obs)**2,1)<rejection_threshold
         return training_data[matchingrowindices,-1]

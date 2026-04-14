@@ -177,7 +177,7 @@ class Path:
         
     def plot(self, startTime = 0, endTime = 7, coordNormalisationFactor = [], transmitters = [], n_test=50, n_std=4, ellipseInterval = 1, 
              timeMultiplier = 10000, coordScaleFactor = [], GPSFile = "", syntheticPath = []):
-        plt.axis("equal")
+        #plt.axis("equal")
         ax = plt.gca()
         plt.xlabel("Easting")
         plt.ylabel("Northing")
