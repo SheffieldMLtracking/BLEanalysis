@@ -12,3 +12,4 @@ convertbng
 pymc==5.28.1
 ipywidgets
 arviz
+ipython
