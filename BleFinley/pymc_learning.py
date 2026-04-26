@@ -180,9 +180,9 @@ def learn_triple_norm_mix(rss_diffs :list[int]):
 
     # plot PDF over histogram
     x_vals = np.linspace(min(rss_diffs), max(rss_diffs)).round().astype(int)
-    n1 = norm.pdf(x_vals, mu, summary.loc["sigma[1]", "mean"])
-    n2 = norm.pdf(x_vals, mu, summary.loc["sigma[2]", "mean"])
-    n3 = norm.pdf(x_vals, mu, summary.loc["sigma[3]", "mean"])
+    n1 = norm.pdf(x_vals, mu, summary.loc["sigma[0]", "mean"])
+    n2 = norm.pdf(x_vals, mu, summary.loc["sigma[1]", "mean"])
+    n3 = norm.pdf(x_vals, mu, summary.loc["sigma[2]", "mean"])
 
     mix = summary.loc["w[0]", "mean"] * n1 + summary.loc["w[1]", "mean"] * n2 + summary.loc["w[2]", "mean"] * n3
 
