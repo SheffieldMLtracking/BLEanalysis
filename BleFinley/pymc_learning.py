@@ -6,6 +6,9 @@ import numpy as np
 from matplotlib import pyplot as plt
 from scipy.stats import norm, cauchy, laplace
 
+X_LABEL = "Δy (dBm)"
+Y_LABEL = "RSS (dBm)"
+
 def learn_normal(rss_diffs :list[int]):
     mu = np.mean(rss_diffs)
 
@@ -19,9 +22,12 @@ def learn_normal(rss_diffs :list[int]):
 
     # plot over histogram
     x_vals = np.linspace(min(rss_diffs), max(rss_diffs)).round().astype(int)
-    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True)
-    plt.plot(x_vals, norm.pdf(x_vals, mu, summary.loc['sigma', 'mean']))
+    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True, label="Δy histogram")
+    plt.plot(x_vals, norm.pdf(x_vals, mu, summary.loc['sigma', 'mean']), label="Normal PDF")
 
+    plt.ylabel(Y_LABEL)
+    plt.xlabel(X_LABEL)
+    plt.legend()
     plt.show()
 
 
@@ -44,9 +50,12 @@ def learn_cauchy(rss_diffs :list[int]):
 
     # plot PDF over histogram
     x_vals = np.linspace(min(rss_diffs), max(rss_diffs)).round().astype(int)
-    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True)
-    plt.plot(x_vals, cauchy.pdf(x_vals, scale=summary.loc["beta", "mean"]))
+    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True, label="Δy histogram")
+    plt.plot(x_vals, cauchy.pdf(x_vals, scale=summary.loc["beta", "mean"]), label="Cauchy PDF")
 
+    plt.ylabel(Y_LABEL)
+    plt.xlabel(X_LABEL)
+    plt.legend()
     plt.show()
 
 
@@ -65,9 +74,12 @@ def learn_laplace(rss_diffs :list[int]):
 
     # plot PDF over histogram
     x_vals = np.linspace(min(rss_diffs), max(rss_diffs)).round().astype(int)
-    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True)
-    plt.plot(x_vals, laplace.pdf(x_vals, loc=mu, scale=summary.loc["std", "mean"]))
+    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True, label="Δy histogram")
+    plt.plot(x_vals, laplace.pdf(x_vals, loc=mu, scale=summary.loc["std", "mean"]), label="Laplace PDF")
 
+    plt.ylabel(Y_LABEL)
+    plt.xlabel(X_LABEL)
+    plt.legend()
     plt.show()
 
 
@@ -95,8 +107,12 @@ def learn_norm_norm_mix(rss_diffs :list[int]):
 
     mix = summary.loc["w[0]", "mean"] * n1 + summary.loc["w[1]", "mean"] * n2
 
-    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True)
-    plt.plot(x_vals, mix)
+    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True, label="Δy histogram")
+    plt.plot(x_vals, mix, label="Normal-Normal Mixture PDF")
+
+    plt.ylabel(Y_LABEL)
+    plt.xlabel(X_LABEL)
+    plt.legend()
     plt.show()
 
 
@@ -125,8 +141,12 @@ def learn_laplace_norm_mix(rss_diffs :list[int]):
 
     mix = summary.loc["w[0]", "mean"] * n + summary.loc["w[1]", "mean"] * l
 
-    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True)
-    plt.plot(x_vals, mix)
+    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True, label="Δy histogram")
+    plt.plot(x_vals, mix, label="Laplace-Normal Mixture PDF")
+
+    plt.ylabel(Y_LABEL)
+    plt.xlabel(X_LABEL)
+    plt.legend()
     plt.show()
 
 def learn_cauchy_norm_mix(rss_diffs :list[int]):
@@ -159,8 +179,12 @@ def learn_cauchy_norm_mix(rss_diffs :list[int]):
 
     mix = summary.loc["w[0]", "mean"] * n + summary.loc["w[1]", "mean"] * c
 
-    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True)
-    plt.plot(x_vals, mix)
+    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True, label="Δy histogram")
+    plt.plot(x_vals, mix, label="Cauchy-Normal Mixture PDF")
+
+    plt.ylabel(Y_LABEL)
+    plt.xlabel(X_LABEL)
+    plt.legend()
     plt.show()
 
 def learn_triple_norm_mix(rss_diffs :list[int]):
@@ -186,6 +210,10 @@ def learn_triple_norm_mix(rss_diffs :list[int]):
 
     mix = summary.loc["w[0]", "mean"] * n1 + summary.loc["w[1]", "mean"] * n2 + summary.loc["w[2]", "mean"] * n3
 
-    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True)
-    plt.plot(x_vals, mix)
+    plt.hist(rss_diffs, bins=x_vals, alpha=0.6, density=True, label="Δy histogram")
+    plt.plot(x_vals, mix, label="Triple-Normal Mixture PDF")
+
+    plt.ylabel(Y_LABEL)
+    plt.xlabel(X_LABEL)
+    plt.legend()
     plt.show()
