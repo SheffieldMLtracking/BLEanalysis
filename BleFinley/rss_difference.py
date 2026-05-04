@@ -15,7 +15,7 @@ def rss_diff_at_gamma(ble_log: BleLog, gamma: float, packet_gap=1) -> list[int]:
     return rss_differences
 
 
-def range_trial_rss_diffs_in_blocks(range_trials, packet_gap=1, log=False):
+def range_trial_rss_diffs_in_blocks(range_trials, packet_gap=1, draw_pdf=True, log=False):
     for start_angle in range(-15, 360 - 15, 30):
         fig, axs = plt.subplots(2, 5, layout='constrained', figsize=(15, 6))
         fig.suptitle(f"Combined Δy for γ from {start_angle} to {(start_angle + 30) % 360} Degrees")
@@ -43,10 +43,12 @@ def range_trial_rss_diffs_in_blocks(range_trials, packet_gap=1, log=False):
 
         # draw combined graph with a laplace & normal mix distribution
         axs[(row, col)].hist(combined_diffs, bins=np.arange(-20, 20), density=True)
-        x_values = np.linspace(-20, 20, 240)
 
-        mix = 0.351 * norm.pdf(x_values, 0, 3.464) + 0.649 * laplace.pdf(x_values, 0, 3.139)
-        axs[(row, col)].plot(x_values, mix)
+        if draw_pdf:
+            x_values = np.linspace(-20, 20, 240)
+
+            mix = 0.351 * norm.pdf(x_values, 0, 3.464) + 0.649 * laplace.pdf(x_values, 0, 3.139)
+            axs[(row, col)].plot(x_values, mix)
 
         axs[(row, col)].set_yscale("log") if log else None
         axs[(row, col)].set_title("Combined")

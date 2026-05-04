@@ -147,6 +147,10 @@ class BleLogStatic(BleLog):
         for packet in self.packets:
             packet.shift_gamma(self.angle_offset)
 
+    def dist_to_transmitter(self):
+        c2 = (self.northing - self.transmitter.northing)**2 + (self.easting - self.transmitter.easting)**2
+        return math.sqrt(c2)
+
 class BlePacket:
     """
     Stores a single BLE packet collected by the bee tags
