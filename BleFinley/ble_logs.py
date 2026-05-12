@@ -110,6 +110,10 @@ class BleLog:
             print(f"all_rss_at_gamma | {len(rss_values)} packets found") if show_log else None
             return rss_values
 
+    def all_times(self) -> list[int]:
+        return [getattr(obj, "time") for obj in self.packets]
+
+
 class BleLogStatic(BleLog):
     """
     Stores all the information about an experiment where

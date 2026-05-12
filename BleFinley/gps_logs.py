@@ -77,6 +77,34 @@ class GpsLog:
         """
         return [getattr(point, "displacement") for point in self.data_points]
 
+    def get_eastings(self) -> list[int]:
+        """
+        Gets a chronological list of all the Eastings of GPS points
+        from their set origin
+        """
+        return [getattr(point, "easting") for point in self.data_points]
+
+    def get_northings(self) -> list[int]:
+        """
+        Gets a chronological list of all the Northings of GPS points
+        from their set origin
+        """
+        return [getattr(point, "northing") for point in self.data_points]
+
+    def get_altitudes(self) -> list[int]:
+        """
+        Gets a chronological list of all the altitudes of GPS points
+        from their set origin
+        """
+        return [getattr(point, "altitude") for point in self.data_points]
+
+    def get_relative_times(self) -> list[int]:
+        """
+        Gets a chronological list of all the relative time stamps of GPS points
+        from their set origin
+        """
+        return [getattr(point, "relative_time") for point in self.data_points]
+
 
 class GpsPoint:
     """
