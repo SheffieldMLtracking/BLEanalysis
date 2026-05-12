@@ -1,9 +1,10 @@
 # BLEanalysis: finley-dissertation
 
-_Date: 26th April 2026_
+_Date: 12th May 2026_
 
 This repository branches off of `BLEanalysis:main` and contains the code and Jupyter notebooks used
-for Finley's (my) undergraduate dissertation project. The project looks at the feasability of powering the Bluetooth
+for Finley's (my) undergraduate dissertation project. Other code and notebooks by Chis and Michael have been removed
+prior to the dissertation hand in deadline. The project looks at the feasability of powering the Bluetooth
 LE bee tags with gallium arsenide solar cells rather than supercapacitors. Due to the decreased power output of solar
 cells, the path inference algorithm must sample less frequently, meaning the affect of attenuation on the signal
 cannot be assumed to be the same and integrated out. Therefore, the attenuation must be modelled so the path inference
@@ -11,7 +12,7 @@ algorithm can take it into account. PyMC is used to attempt to fit a variety of 
 PyMC's powerful paramter inference abilities, it can discover the parameters that best fit a probability distribution
 onto the data. Not all distributions will accurately fit the data, so the "best" parameters can only do so much!
 
-All notebooks are under `/jupyter/Finley/`. The most
+All notebooks are under `/jupyter/`. The most
 important notebooks are `FSPL.ipynb` and `RSS Differences.ipynb`, with the others used for getting familiar
 with the BeeLE project and experimenting with the existing code and libraries. 
 
@@ -30,9 +31,9 @@ not in any serious detail. None of this data was not collected by me.
 Python 3.12 is required for this project. Please ensure it is installed before running the commands below. The commands
 are in bash and assume you are on Linux or WSL.
 
-All dependencies for the project have been defined in the `requirements.txt` file, including the very specific 
-versions of some libraries required for path inference. To clone the git repository and install these dependencies with
-the two custom libraries in editable mode, run the following:
+All dependencies for the project have been defined in the `requirements.txt` file, including the `BLEanalysis` library
+and its very specific dependencies. To clone the git repository and install dependencies (including `BleFinley`), 
+run the following
 
 ```bash
 git clone git@github.com:SheffieldMLtracking/BLEanalysis.git
@@ -41,8 +42,6 @@ git checkout finley-dissertation
 python3.12 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-pip installe -e . # install the BLEanalysis package stored in the root directory
-pip install -e BleFinley
 ```
 
 ### Experiment Data
