@@ -13,3 +13,7 @@ pymc==5.28.1
 ipywidgets
 arviz
 ipython
+git+https://github.com/SheffieldMLtracking/BLEanalysis.git
+./BleFinley
+scikit-learn
+pandas
