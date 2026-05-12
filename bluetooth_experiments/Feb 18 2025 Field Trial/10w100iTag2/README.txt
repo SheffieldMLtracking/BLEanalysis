@@ -1,0 +1,1 @@
+This is around the point transmitter A broke - tag also failed to read
