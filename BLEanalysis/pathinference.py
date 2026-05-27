@@ -234,11 +234,14 @@ class Path:
         ax.ticklabel_format(useOffset=False, style='plain')
 
         MAE = 0
+        CDF = []
         if not(GPSFile == ""):
             # calculate the MAE point for point between the GPS path and the inferred path
             for point in range(n_test-1):
                 #plt.plot((GPSxx[point], posterior_mean[:n_test][point] + coordScaleFactor[1]),
                 #         (GPSyy[point], posterior_mean[n_test:][point] + coordScaleFactor[0]))
+                CDF.append(np.round((np.abs(np.sqrt(np.square(GPSxx[point] - (posterior_mean[:n_test][point] + coordScaleFactor[1])) 
+                                      + np.square(GPSyy[point] - (posterior_mean[n_test:][point] + coordScaleFactor[0]))))),2))
                 MAE += np.round((np.abs(np.sqrt(np.square(GPSxx[point] - (posterior_mean[:n_test][point] + coordScaleFactor[1])) 
                                       + np.square(GPSyy[point] - (posterior_mean[n_test:][point] + coordScaleFactor[0]))))),2)
             plt.text(.02, .98, 'MAE: ' + str(round(MAE/n_test, 2)) + 'm', ha='left', va='top', transform=ax.transAxes)
@@ -251,7 +254,7 @@ class Path:
 
         plt.legend(loc="lower left")
         
-        return MAE/n_test
+        return MAE/n_test, CDF
 
 class Path_VectorsToBee(Path):
     def __init__(self, observation_times, observations, kernel, inducing_points, noise_scale=0.1, ndims = 2, margin = 0.1, jitter = 0.1):
