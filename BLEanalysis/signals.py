@@ -356,8 +356,8 @@ class Signals:
             rssis = self.data[index,0]
             angles = self.data[index,2]
             if exclude_missing is not None:
-                rssis[(np.abs(self.data[:, -1:] - times[None,:]))[index,range(len(index))]>=exclude_missing]=np.NaN
-                angles[(np.abs(self.data[:, -1:] - times[None,:]))[index,range(len(index))]>=exclude_missing]=np.NaN
+                rssis[(np.abs(self.data[:, -1:] - times[None,:]))[index,range(len(index))]>=exclude_missing]=np.nan
+                angles[(np.abs(self.data[:, -1:] - times[None,:]))[index,range(len(index))]>=exclude_missing]=np.nan
             if not raw:       
                 rssis-=rssis[0] #NOTE: I've switched to making the first time the angle index time as we could have an unknown number of time_intervals. 
             if target_time is not None: break
