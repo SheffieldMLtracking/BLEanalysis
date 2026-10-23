@@ -87,7 +87,6 @@ from collections import defaultdict
 plotter = AnimatedPlotterly(timesteps, tail_length=0.1)
 
 
-
 # "Dictionary mapping timestamps to sensor states" -- but we are just copying the sensor object? not sure about this tbh
 sensor_history = defaultdict(dict)
 sensor_set = [platform.sensors[0] for platform in sensor_platforms]
