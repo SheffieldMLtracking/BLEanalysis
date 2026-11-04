@@ -30,6 +30,7 @@ from stonesoup.types.groundtruth import GroundTruthPath
 from collections import defaultdict   
 import copy
 from typing import List
+import pdb
 
 class bee_simulation:
     """
@@ -55,7 +56,7 @@ class bee_simulation:
                                                                 ConstantVelocity(velocity)])
         
         # timestamps the simulation is observed over
-        self.time_max = 180 
+        self.time_max = 360 
         self.timesteps = [self.start_time + timedelta(seconds=k) for k in range(self.time_max)]
 
         # initial state of bee
@@ -148,16 +149,40 @@ class bee_simulation:
             self.evolve_simulation_by_time(ts)
 
 
-    def run_using_scheduler(self):
+    def run_using_scheduler_discrete_case(self):
+        self._run_using_scheduler_discrete_case_helper(self.timesteps[1:])
+
+
+    def _run_using_scheduler_discrete_case_helper(self, remaining_timesteps, k=10):
         """
+        Currently designed for discrete case
         testing that the code works the same if the simulation is sampling at irregular periods
+        given an array of timesteps, takes first k samples, uses best timestep, then 
+
+        (clunikly written, but hopefully will be made obsolete soon when i switch to operating in 
+        continuous time)
         """
 
-        # TODO 
-        pass
+        if (len(remaining_timesteps) > k):
+            lookahead_steps = remaining_timesteps[0:k]
+            time_to_sample_at = self.select_best_timestep(lookahead_steps)
+
+            for ts in lookahead_steps:
+                print(ts)
+                if ts == time_to_sample_at:
+                    self.evolve_simulation_by_time(ts, use_measurements=True)
+                    break
+                else:
+                    self.evolve_simulation_by_time(ts, use_measurements=False)
 
 
-    def evolve_simulation_by_time(self, ts):
+            index = remaining_timesteps.index(time_to_sample_at)
+
+            self._run_using_scheduler_discrete_case_helper(remaining_timesteps[(index+1):])
+
+
+
+    def evolve_simulation_by_time(self, ts, use_measurements=True):
         """
         ts: timestamp that represents the new point in simulation to update and 
         """
@@ -177,7 +202,7 @@ class bee_simulation:
         # evovle filter 
         prediction = self.predictor.predict(self.track[-1], timestamp=ts)
 
-        if measurements:
+        if measurements and use_measurements:
             for detection in measurements:
                 # if there are detections update
                 hypothesis = SingleHypothesis(
@@ -199,6 +224,8 @@ class bee_simulation:
         returns the best timestep
         """
 
+        # create a self copy of the class
+
         # imagine this works, and we return a next timestep to sample at
         return future_timesteps[-1] 
 
@@ -219,5 +246,6 @@ class bee_simulation:
 
 
 sim = bee_simulation()
-sim.run_at_regular_intervals()
+#sim.run_at_regular_intervals()
+sim.run_using_scheduler_discrete_case()
 sim.plot_everything_using_plotterly()
