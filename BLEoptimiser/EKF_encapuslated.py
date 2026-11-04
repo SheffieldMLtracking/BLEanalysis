@@ -150,10 +150,11 @@ class bee_simulation:
 
 
     def run_using_scheduler_discrete_case(self):
+        self.counter = 0
         self._run_using_scheduler_discrete_case_helper(self.timesteps[1:])
 
 
-    def _run_using_scheduler_discrete_case_helper(self, remaining_timesteps, k=10):
+    def _run_using_scheduler_discrete_case_helper(self, remaining_timesteps, k=40):
         """
         Currently designed for discrete case
         testing that the code works the same if the simulation is sampling at irregular periods
@@ -162,13 +163,15 @@ class bee_simulation:
         (clunikly written, but hopefully will be made obsolete soon when i switch to operating in 
         continuous time)
         """
+        self.counter += 1
+        print("\n iteration " + str(self.counter) + ", remaining steps: " + str(len(remaining_timesteps)))
+
 
         if (len(remaining_timesteps) > k):
             lookahead_steps = remaining_timesteps[0:k]
             time_to_sample_at = self.select_best_timestep(lookahead_steps)
 
             for ts in lookahead_steps:
-                print(ts)
                 if ts == time_to_sample_at:
                     self.evolve_simulation_by_time(ts, use_measurements=True)
                     break
@@ -219,17 +222,51 @@ class bee_simulation:
     # METHODS FOR SENSOR SCHEDULING:
     def select_best_timestep(self, future_timesteps):
         """
-        looks ahead k steps
-        num_lookahead, number of timesteps ahead of current time to evaluate
-        returns the best timestep
+        given list future_timesteps and simulates the timesteps calculating EIG associated with 
+        sampling at each timestep, returns the timestep with the highest information gain 
+
+        TODO could use dynamic programming to make less computationally demanding? 
+        - does this even make a big difference? calculate it
         """
 
-        # create a self copy of the class
-
-        # imagine this works, and we return a next timestep to sample at
-        return future_timesteps[-1] 
+        #return self._select_random_timestamp(future_timesteps)
+        return self._select_best_timestamp_using_KL_divergence(future_timesteps) 
 
 
+    def _select_random_timestamp(self, future_timesteps):
+        """
+        just randomly select a future timestep 
+        """
+        # get random index
+        import random
+        index = random.randrange(0, len(future_timesteps), 1)
+
+        return future_timesteps[index]
+
+
+
+
+    def _select_best_timestamp_using_KL_divergence(self, future_timesteps):
+        #from stonesoup.sensormanager.reward import ExpectedKLDivergence
+        from stonesoup.measures import KLDivergence
+
+        KLD = KLDivergence()
+
+        prior = self.track[-1]
+
+        ts_scores = []
+
+        for ts in future_timesteps:
+            copy_of_simulation_at_current_time = copy.deepcopy(self)
+            copy_of_simulation_at_current_time.evolve_simulation_by_time(ts)
+
+            posterior_distribution = copy_of_simulation_at_current_time.track[-1]
+
+            ts_scores.append((ts, KLD(prior, posterior_distribution)))
+
+        # print("\n scores: ")
+        # print(ts_scores)
+        return max(ts_scores, key=lambda x: x[1])[0]
 
 
 
