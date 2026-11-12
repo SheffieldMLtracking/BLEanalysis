@@ -244,8 +244,6 @@ class bee_simulation:
         return future_timesteps[index]
 
 
-
-
     def _select_best_timestamp_using_KL_divergence(self, future_timesteps):
         #from stonesoup.sensormanager.reward import ExpectedKLDivergence
         from stonesoup.measures import KLDivergence

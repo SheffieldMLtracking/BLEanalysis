@@ -1,12 +1,10 @@
-# Sensor Scheduler Algorithms
+# BLEoptimiser
 
-TODO explain repo. 
+Contains code to simulate the bees flight and schedule when to sample. 
 
-# EKF_demo_based_on_bee
-- attempts to model the bee 
+`bee_simulation_discrete_time.py` is a simulation that expects discrete time intervals. In this case we can use the Stone Soup visualisation methods built on top of plotterly.
 
-# EKF_demo_slower
-- simple demo that is working on a slower time rate
+`bee_simulation.py` handles arbitary time intervals. 
 
 # CalculatesGain 
 
